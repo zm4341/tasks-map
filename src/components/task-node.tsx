@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
 import { Plus } from "lucide-react";
 import { useApp } from "src/hooks/hooks";
@@ -56,6 +56,19 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
   const [tagError, setTagError] = useState(false);
   const app = useApp();
   const summaryRef = useSummaryRenderer(task.summary);
+
+  // Sync local state with task prop when it changes (e.g., after Update Nodes)
+  useEffect(() => {
+    setStatus(task.status);
+  }, [task.status]);
+
+  useEffect(() => {
+    setStarred(task.starred);
+  }, [task.starred]);
+
+  useEffect(() => {
+    setTags(task.tags || []);
+  }, [task.tags]);
 
   const isVertical = layoutDirection === "Vertical";
   const targetPosition = isVertical ? Position.Top : Position.Left;

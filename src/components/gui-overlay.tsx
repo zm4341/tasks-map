@@ -7,6 +7,7 @@ interface GuiOverlayProps {
   selectedTags: string[];
   setSelectedTags: (tags: string[]) => void; // eslint-disable-line no-unused-vars
   reloadTasks: () => void;
+  loadSavedData: () => void;
   allStatuses: TaskStatus[];
   selectedStatuses: TaskStatus[];
   setSelectedStatuses: (statuses: TaskStatus[]) => void; // eslint-disable-line no-unused-vars
@@ -18,6 +19,7 @@ export default function GuiOverlay(props: GuiOverlayProps) {
     selectedTags,
     setSelectedTags,
     reloadTasks,
+    loadSavedData,
     allStatuses,
     selectedStatuses,
     setSelectedStatuses,
@@ -42,10 +44,16 @@ export default function GuiOverlay(props: GuiOverlayProps) {
       </div>
       <div className="tasks-map-gui-overlay-bottom">
         <button
+          onClick={loadSavedData}
+          className="tasks-map-gui-overlay-reload-button tasks-map-gui-overlay-load-button"
+        >
+          Load Data
+        </button>
+        <button
           onClick={reloadTasks}
           className="tasks-map-gui-overlay-reload-button"
         >
-          Reload tasks
+          Update Nodes
         </button>
       </div>
     </>

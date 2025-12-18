@@ -1,22 +1,18 @@
-import React, { useEffect, useCallback, useMemo } from "react";
+import React, { useEffect, useCallback, useMemo, useRef } from "react";
 import ReactFlow, {
   Background,
   useNodesState,
   useEdgesState,
   addEdge,
   useReactFlow,
+  NodeChange,
+  Position,
 } from "reactflow";
-import { Notice } from "obsidian";
+import { Notice, TFile, TFolder } from "obsidian";
 import { useApp } from "src/hooks/hooks";
-import {
-  addLinkSignsBetweenTasks,
-  getAllTasks,
-  getLayoutedElements,
-  removeLinkSignsBetweenTasks,
-  createNodesFromTasks,
-  createEdgesFromTasks,
-} from "src/lib/utils";
-import { Task } from "src/types/task";
+import { getAllTasks } from "src/lib/utils";
+import { TaskFactory } from "src/lib/task-factory";
+import { Task, TaskNode as TaskNodeType } from "src/types/task";
 import GuiOverlay from "src/components/gui-overlay";
 import TaskNode from "src/components/task-node";
 import { NO_TAGS_VALUE } from "src/components/tag-select";
@@ -26,15 +22,17 @@ import { DeleteEdgeButton } from "src/components/delete-edge-button";
 import { TagsContext } from "src/contexts/context";
 
 import { TaskStatus } from "src/types/task";
-import { TasksMapSettings } from "src/types/settings";
+import { TasksMapSettings, GraphData } from "src/types/settings";
+import TasksMapPlugin from "src/main";
 
 const ALL_STATUSES: TaskStatus[] = ["todo", "in_progress", "done", "canceled"];
 
 interface TaskMapGraphViewProps {
   settings: TasksMapSettings;
+  plugin: TasksMapPlugin;
 }
 
-export default function TaskMapGraphView({ settings }: TaskMapGraphViewProps) {
+export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewProps) {
   const app = useApp();
   const vault = app.vault;
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -46,14 +44,23 @@ export default function TaskMapGraphView({ settings }: TaskMapGraphViewProps) {
     ...ALL_STATUSES,
   ]);
   const selectedEdgeRef = React.useRef<string | null>(null);
+  const nodesRef = React.useRef(nodes);
   const edgesRef = React.useRef(edges);
   const tasksRef = React.useRef(tasks);
   const vaultRef = React.useRef(vault);
   const reactFlowInstance = useReactFlow();
+  
+  // Persistence: track if this is initial load
+  const isInitialLoadRef = useRef(true);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     selectedEdgeRef.current = selectedEdge;
   }, [selectedEdge]);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   useEffect(() => {
     edgesRef.current = edges;
@@ -67,11 +74,65 @@ export default function TaskMapGraphView({ settings }: TaskMapGraphViewProps) {
     vaultRef.current = vault;
   }, [vault]);
 
+  // Debounced save function - uses refs to get latest values
+  const saveGraphData = useCallback(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      const currentNodes = nodesRef.current;
+      const currentEdges = edgesRef.current;
+      const viewport = reactFlowInstance.getViewport();
+      const graphData: GraphData = {
+        nodes: currentNodes.map((n) => ({
+          id: n.id,
+          position: n.position,
+          taskId: n.id,
+          // Save complete task data for restoration
+          taskData: n.data?.task ? {
+            id: n.data.task.id,
+            type: n.data.task.type,
+            summary: n.data.task.summary,
+            text: n.data.task.text,
+            tags: n.data.task.tags,
+            status: n.data.task.status,
+            priority: n.data.task.priority,
+            link: n.data.task.link,
+            incomingLinks: n.data.task.incomingLinks,
+            starred: n.data.task.starred,
+          } : undefined,
+        })),
+        edges: currentEdges.map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+        })),
+        viewport: { x: viewport.x, y: viewport.y, zoom: viewport.zoom },
+      };
+      plugin.saveGraphData(graphData);
+    }, 500);
+  }, [plugin, reactFlowInstance]);
+
+  // Custom onNodesChange that also saves
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      onNodesChange(changes);
+      // Save after position changes
+      const hasPositionChange = changes.some(
+        (c) => c.type === "position" && c.dragging === false
+      );
+      if (hasPositionChange) {
+        saveGraphData();
+      }
+    },
+    [onNodesChange, saveGraphData]
+  );
+
   useEffect(() => {
     // Wait for a short moment to ensure vault is ready
     // Tasks may not be immediately available on vault open through the Dataview plugin
     const timeoutId = window.setTimeout(() => {
-      reloadTasks();
+      loadInitialData();
     }, 1000);
 
     return () => window.clearTimeout(timeoutId);
@@ -132,16 +193,273 @@ export default function TaskMapGraphView({ settings }: TaskMapGraphViewProps) {
     return filtered.map((task) => task.id);
   };
 
-  const reloadTasks = () => {
+  // Load saved graph data
+  const loadSavedData = useCallback(() => {
+    const savedData = plugin.getGraphData();
+    
+    if (savedData.nodes.length === 0) {
+      new Notice("No saved data to load");
+      return;
+    }
+    
+    const isVertical = settings.layoutDirection === "Vertical";
+    
+    // Restore nodes from saved data
+    const restoredNodes: TaskNodeType[] = savedData.nodes
+      .filter((n) => n.taskData) // Only restore nodes with task data
+      .map((savedNode) => ({
+        id: savedNode.id,
+        position: savedNode.position,
+        data: {
+          task: savedNode.taskData as Task,
+          layoutDirection: settings.layoutDirection,
+          showPriorities: settings.showPriorities,
+          showTags: settings.showTags,
+          debugVisualization: settings.debugVisualization,
+          tagColorMode: settings.tagColorMode,
+          tagColorSeed: settings.tagColorSeed,
+          tagStaticColor: settings.tagStaticColor,
+        },
+        type: "task" as const,
+        sourcePosition: isVertical ? Position.Bottom : Position.Right,
+        targetPosition: isVertical ? Position.Top : Position.Left,
+        draggable: true,
+      }));
+    
+    // Restore edges
+    const restoredEdges = savedData.edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      type: "hash" as const,
+      data: {
+        hash: e.id,
+        layoutDirection: settings.layoutDirection,
+        debugVisualization: settings.debugVisualization,
+      },
+    }));
+    
+    setNodes(restoredNodes);
+    setEdges(restoredEdges);
+    
+    // Restore viewport
+    if (savedData.viewport) {
+      setTimeout(() => {
+        reactFlowInstance.setViewport(savedData.viewport, { duration: 400 });
+      }, 100);
+    }
+    
+    new Notice(`Loaded ${restoredNodes.length} nodes`);
+  }, [plugin, settings, reactFlowInstance, setNodes, setEdges]);
+
+  // Load initial data from saved graph
+  const loadInitialData = () => {
     const newTasks = getAllTasks(app);
-    setTasks(newTasks);
-    // Rebuild the tag registry from the reloaded tasks
+    
+    // Rebuild the tag registry
     const newRegistry = new Map<string, string[]>();
     newTasks.forEach((task) => {
       newRegistry.set(task.id, task.tags);
     });
     setTaskTagsRegistry(newRegistry);
+    setTasks(newTasks);
+    
+    // Try to load saved data
+    loadSavedData();
+    
+    isInitialLoadRef.current = false;
   };
+
+  // Scan tasks directly from files (using path:line as ID)
+  const scanTasksFromFiles = async (): Promise<Task[]> => {
+    const tasksFolder = app.vault.getAbstractFileByPath("Spaces/2.Area/Tasks");
+    if (!tasksFolder || !(tasksFolder instanceof TFolder)) {
+      console.log("Tasks folder not found or not a folder");
+      return [];
+    }
+
+    const allTasks: Task[] = [];
+    const factory = new TaskFactory();
+
+    const scanFolder = async (folder: TFolder) => {
+      for (const child of folder.children) {
+        if (child instanceof TFile && child.extension === "md") {
+          const content = await app.vault.read(child);
+          const lines = content.split("\n");
+
+          // Parse tasks from content
+          lines.forEach((line, index) => {
+            const taskMatch = line.match(/^[\s]*- \[(.)\]/);
+            if (taskMatch) {
+              const rawTask = {
+                status: taskMatch[1],
+                text: line.replace(/^[\s]*- \[.\]\s*/, ""),
+                link: { path: child.path },
+              };
+              const task = factory.parse(rawTask);
+              // Use path:line as stable ID
+              task.id = `${child.path}:${index}`;
+              allTasks.push(task);
+            }
+          });
+        } else if (child instanceof TFolder) {
+          await scanFolder(child);
+        }
+      }
+    };
+
+    await scanFolder(tasksFolder);
+    console.log("Scanned tasks:", allTasks.length, allTasks.map(t => t.id));
+    return allTasks;
+  };
+
+  // Update nodes - only updates content, doesn't change positions or add new nodes
+  const updateNodes = async () => {
+    // Scan tasks directly from files (path:line ID format)
+    const scannedTasks = await scanTasksFromFiles();
+    
+    console.log("Update nodes - scanned tasks:", scannedTasks.length);
+    console.log("Update nodes - current nodes:", nodes.length, nodes.map(n => n.id));
+    
+    // Rebuild the tag registry
+    const newRegistry = new Map<string, string[]>();
+    scannedTasks.forEach((task) => {
+      newRegistry.set(task.id, task.tags);
+    });
+    setTaskTagsRegistry(newRegistry);
+    
+    // Update tasks state
+    setTasks(scannedTasks);
+    
+    // Update existing nodes with new task data, preserving positions
+    // Matching by node.id (which is path:line format)
+    setNodes((currentNodes) => {
+      console.log("setNodes - currentNodes:", currentNodes.length);
+      return currentNodes.map((node) => {
+        const nodeTask = node.data?.task;
+        if (!nodeTask) return node;
+        
+        // Direct match by node ID (path:line format)
+        const updatedTask = scannedTasks.find((t) => t.id === node.id);
+        
+        console.log("Matching node:", node.id, "found:", !!updatedTask);
+        
+        if (updatedTask) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              task: updatedTask,
+            },
+          };
+        }
+        
+        // Keep node unchanged if no match found
+        return node;
+      });
+    });
+    
+    // Save after update
+    setTimeout(() => saveGraphData(), 100);
+    
+    new Notice("Nodes updated");
+  };
+
+  // Add a task to canvas (called from sidebar drag-drop)
+  const addTaskToCanvas = useCallback(
+    (taskId: string, position: { x: number; y: number }, taskData?: unknown) => {
+      // Try to find task from tasks array first, fall back to provided taskData
+      const task = tasks.find((t) => t.id === taskId) || (taskData as Task | undefined);
+      if (!task) {
+        new Notice("Task not found");
+        return;
+      }
+      
+      // Check if already on canvas
+      if (nodes.some((n) => n.id === task.id)) {
+        new Notice("Task already on canvas");
+        return;
+      }
+      
+      const isVertical = settings.layoutDirection === "Vertical";
+      const newNode: TaskNodeType = {
+        id: task.id,
+        position,
+        data: {
+          task,
+          layoutDirection: settings.layoutDirection,
+          showPriorities: settings.showPriorities,
+          showTags: settings.showTags,
+          debugVisualization: settings.debugVisualization,
+          tagColorMode: settings.tagColorMode,
+          tagColorSeed: settings.tagColorSeed,
+          tagStaticColor: settings.tagStaticColor,
+        },
+        type: "task" as const,
+        sourcePosition: isVertical ? Position.Bottom : Position.Right,
+        targetPosition: isVertical ? Position.Top : Position.Left,
+        draggable: true,
+      };
+      
+      setNodes((nds) => [...nds, newNode]);
+      
+      // Save after adding
+      setTimeout(() => saveGraphData(), 100);
+      new Notice("Task added to canvas");
+    },
+    [tasks, nodes, settings, saveGraphData]
+  );
+
+  // Get IDs of tasks currently on canvas
+  const getCanvasTaskIds = useCallback(() => {
+    return nodes.map((n) => n.id);
+  }, [nodes]);
+
+  // Register canvas operations with plugin for sidebar access
+  useEffect(() => {
+    plugin.registerCanvasOperations(addTaskToCanvas, getCanvasTaskIds);
+    return () => {
+      plugin.unregisterCanvasOperations();
+    };
+  }, [plugin, addTaskToCanvas, getCanvasTaskIds]);
+
+  // Drag and drop from sidebar
+  const [isDragOver, setIsDragOver] = React.useState(false);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes("application/tasks-map-task")) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+      
+      const data = e.dataTransfer.getData("application/tasks-map-task");
+      if (!data) return;
+      
+      try {
+        const { task } = JSON.parse(data);
+        // Convert screen position to flow position
+        const position = reactFlowInstance.screenToFlowPosition({
+          x: e.clientX,
+          y: e.clientY,
+        });
+        addTaskToCanvas(task.id, position, task);
+      } catch (err) {
+        console.error("Failed to parse task drop data:", err);
+      }
+    },
+    [reactFlowInstance, addTaskToCanvas]
+  );
 
   const updateTaskTags = useCallback((taskId: string, newTags: string[]) => {
     setTaskTagsRegistry((prevRegistry) => {
@@ -152,52 +470,67 @@ export default function TaskMapGraphView({ settings }: TaskMapGraphViewProps) {
   }, []);
 
   useEffect(() => {
-    let newNodes = createNodesFromTasks(
-      tasks,
-      settings.layoutDirection,
-      settings.showPriorities,
-      settings.showTags,
-      settings.debugVisualization,
-      settings.tagColorMode,
-      settings.tagColorSeed,
-      settings.tagStaticColor
-    );
-    let newEdges = createEdgesFromTasks(
-      tasks,
-      settings.layoutDirection,
-      settings.debugVisualization
-    );
-
+    // Skip if no tasks or no nodes
+    if (tasks.length === 0 || nodes.length === 0) return;
+    
+    // Only apply filters if there are active tag/status filters
+    const hasTagFilter = selectedTags.length > 0;
+    const hasStatusFilter = selectedStatuses.length < 4; // less than all statuses
+    
+    if (!hasTagFilter && !hasStatusFilter) {
+      // No filters active, ensure all nodes are visible
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => ({
+          ...node,
+          hidden: false,
+        }))
+      );
+      setEdges((currentEdges) =>
+        currentEdges.map((edge) => ({
+          ...edge,
+          hidden: false,
+        }))
+      );
+      return;
+    }
+    
+    // Apply filters - but only to nodes whose tasks are in the tasks array
+    // Nodes added from sidebar (with different ID format) should stay visible
     const filteredNodeIds = getFilteredNodeIds(
       tasks,
       selectedTags,
       selectedStatuses
     );
-    newNodes = newNodes.filter((n) => filteredNodeIds.includes(n.id));
-    newEdges = newEdges.filter(
-      (e) =>
-        filteredNodeIds.includes(e.source) && filteredNodeIds.includes(e.target)
+    const taskIds = new Set(tasks.map((t) => t.id));
+    
+    setNodes((currentNodes) =>
+      currentNodes.map((node) => {
+        // If node's task is not in tasks array (sidebar-added), keep visible
+        if (!taskIds.has(node.id)) {
+          // Check if node's task data passes filters
+          const nodeTask = node.data?.task;
+          if (nodeTask) {
+            const passesStatusFilter = !hasStatusFilter || selectedStatuses.includes(nodeTask.status);
+            const passesTagFilter = !hasTagFilter || 
+              (selectedTags.includes(NO_TAGS_VALUE) && nodeTask.tags.length === 0) ||
+              selectedTags.some((tag) => tag !== NO_TAGS_VALUE && nodeTask.tags.includes(tag));
+            return { ...node, hidden: !(passesStatusFilter && passesTagFilter) };
+          }
+          return { ...node, hidden: false };
+        }
+        return { ...node, hidden: !filteredNodeIds.includes(node.id) };
+      })
     );
-
-    const layoutedNodes = getLayoutedElements(
-      newNodes,
-      newEdges,
-      settings.layoutDirection
+    
+    setEdges((currentEdges) =>
+      currentEdges.map((edge) => ({
+        ...edge,
+        hidden:
+          !filteredNodeIds.includes(edge.source) ||
+          !filteredNodeIds.includes(edge.target),
+      }))
     );
-    setNodes(layoutedNodes);
-    setEdges(newEdges);
-
-    // Initialize tag registry when tasks change
-    const newRegistry = new Map<string, string[]>();
-    tasks.forEach((task) => {
-      newRegistry.set(task.id, task.tags);
-    });
-    setTaskTagsRegistry(newRegistry);
-
-    setTimeout(() => {
-      reactFlowInstance.fitView({ duration: 400 });
-    }, 1000); // Allow time for DOM updates
-  }, [tasks, selectedTags, selectedStatuses]);
+  }, [tasks, selectedTags, selectedStatuses, nodes.length]);
 
   const nodeTypes = useMemo(() => ({ task: TaskNode }), []);
   const edgeTypes = useMemo(() => ({ hash: HashEdge }), []);
@@ -217,72 +550,96 @@ export default function TaskMapGraphView({ settings }: TaskMapGraphViewProps) {
 
   const onPaneClick = useCallback(() => {
     setSelectedEdge(null);
+    setContextMenu(null);
   }, [setSelectedEdge]);
+
+  // Context menu state for right-click delete
+  const [contextMenu, setContextMenu] = React.useState<{
+    nodeId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: { id: string }) => {
+      event.preventDefault();
+      setContextMenu({
+        nodeId: node.id,
+        x: event.clientX,
+        y: event.clientY,
+      });
+    },
+    []
+  );
+
+  const deleteNode = useCallback(
+    (nodeId: string) => {
+      setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+      setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+      setContextMenu(null);
+      setTimeout(() => saveGraphData(), 100);
+      new Notice("Node deleted");
+    },
+    [setNodes, setEdges, saveGraphData]
+  );
 
   const onDeleteSelectedEdge = useCallback(async () => {
     if (!selectedEdge) return;
 
-    const edge = edges.find((e) => e.id === selectedEdge);
-    if (!edge || !edge.data?.hash) return;
-
-    const sourceTask = tasks.find((t) => t.id === edge.source);
-    const targetTask = tasks.find((t) => t.id === edge.target);
-    if (!sourceTask || !targetTask) return;
-
-    if (vault) {
-      await removeLinkSignsBetweenTasks(vault, targetTask, sourceTask.id);
-      setEdges((eds) => eds.filter((e) => e.id !== selectedEdge));
-      setSelectedEdge(null);
-    }
-  }, [selectedEdge, edges, tasks, vault, setEdges]);
+    // Simply delete the edge from canvas and save to data.json
+    // No need to modify source files
+    setEdges((eds) => eds.filter((e) => e.id !== selectedEdge));
+    setSelectedEdge(null);
+    setTimeout(() => saveGraphData(), 100);
+    new Notice("Edge deleted");
+  }, [selectedEdge, setEdges, saveGraphData]);
 
   const onConnect = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async (params: any) => {
-      const sourceTask = tasks.find((t) => t.id === params.source);
-      const targetTask = tasks.find((t) => t.id === params.target);
+      // Get tasks from nodes instead of tasks array (works for sidebar-added nodes)
+      const sourceNode = nodes.find((n) => n.id === params.source);
+      const targetNode = nodes.find((n) => n.id === params.target);
+      
+      const sourceTask = sourceNode?.data?.task || tasks.find((t) => t.id === params.source);
+      const targetTask = targetNode?.data?.task || tasks.find((t) => t.id === params.target);
 
-      if (!vault || !sourceTask || !targetTask) return;
-
-      // Check if tasks are of different types
-      if (sourceTask.type !== targetTask.type) {
-        new Notice(
-          "Cannot create edges between different task types (dataview and note-based tasks). Both tasks must be of the same type.",
-          5000
-        );
+      if (!sourceTask || !targetTask) {
+        new Notice("Cannot connect: task data not found");
         return;
       }
 
-      const hash = await addLinkSignsBetweenTasks(
-        vault,
-        sourceTask,
-        targetTask,
-        settings.linkingStyle
-      );
-      if (hash) {
-        setEdges((eds) =>
-          addEdge(
-            {
-              ...params,
-              type: "hash",
-              data: {
-                hash,
-                layoutDirection: settings.layoutDirection,
-                debugVisualization: settings.debugVisualization,
-              },
+      // Create edge without modifying source files
+      // Connection is only stored in data.json
+      const edgeId = `${params.source}-${params.target}`;
+      
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...params,
+            id: edgeId,
+            type: "hash",
+            data: {
+              hash: edgeId,
+              layoutDirection: settings.layoutDirection,
+              debugVisualization: settings.debugVisualization,
             },
-            eds
-          )
-        );
-      }
+          },
+          eds
+        )
+      );
+      
+      // Save edges after connecting
+      setTimeout(() => saveGraphData(), 100);
+      new Notice("Connected (saved to data.json only)");
     },
     [
-      vault,
+      nodes,
       tasks,
       setEdges,
       settings.layoutDirection,
       settings.debugVisualization,
-      settings.linkingStyle,
+      saveGraphData,
     ]
   );
 
@@ -296,11 +653,16 @@ export default function TaskMapGraphView({ settings }: TaskMapGraphViewProps) {
 
   return (
     <TagsContext.Provider value={tagsContextValue}>
-      <div className="tasks-map-graph-container">
+      <div
+        className={`tasks-map-graph-container ${isDragOver ? "drag-over" : ""}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodesChange={onNodesChange}
+          onNodesChange={handleNodesChange}
           onEdgesChange={onEdgesChange}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
@@ -311,12 +673,14 @@ export default function TaskMapGraphView({ settings }: TaskMapGraphViewProps) {
           onEdgeClick={onEdgeClick}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
+          onNodeContextMenu={onNodeContextMenu}
         >
           <GuiOverlay
             allTags={allTags}
             selectedTags={selectedTags}
             setSelectedTags={setSelectedTags}
-            reloadTasks={reloadTasks}
+            reloadTasks={updateNodes}
+            loadSavedData={loadSavedData}
             allStatuses={ALL_STATUSES}
             selectedStatuses={selectedStatuses}
             setSelectedStatuses={setSelectedStatuses}
@@ -325,6 +689,26 @@ export default function TaskMapGraphView({ settings }: TaskMapGraphViewProps) {
           <Background />
         </ReactFlow>
         {selectedEdge && <DeleteEdgeButton onDelete={onDeleteSelectedEdge} />}
+        {contextMenu && (
+          <div
+            className="tasks-map-context-menu"
+            data-x={contextMenu.x}
+            data-y={contextMenu.y}
+            ref={(el) => {
+              if (el) {
+                el.style.left = `${contextMenu.x}px`;
+                el.style.top = `${contextMenu.y}px`;
+              }
+            }}
+          >
+            <button
+              className="tasks-map-context-menu-item"
+              onClick={() => deleteNode(contextMenu.nodeId)}
+            >
+              🗑️ Delete Node
+            </button>
+          </div>
+        )}
       </div>
     </TagsContext.Provider>
   );

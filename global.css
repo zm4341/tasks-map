@@ -435,6 +435,11 @@ If your plugin does not need CSS, delete this file.
   font-weight: 600;
 }
 
+.tasks-map-gui-overlay-load-button {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
 /* Task Priority Styles */
 .tasks-map-task-priority {
   font-size: 18px;
@@ -632,4 +637,225 @@ If your plugin does not need CSS, delete this file.
 .tasks-map-add-tag-button:hover {
   background-color: rgba(0, 0, 0, 0.3) !important;
   color: white !important;
+}
+
+/* ========== Sidebar Styles ========== */
+.tasks-map-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 8px;
+  background: transparent;
+}
+
+.tasks-map-sidebar-header {
+  padding: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tasks-map-sidebar-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.tasks-map-sidebar-refresh-button {
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.tasks-map-sidebar-refresh-button:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.tasks-map-sidebar-refresh-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tasks-map-sidebar-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.tasks-map-sidebar-select {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: 13px;
+}
+
+.tasks-map-sidebar-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.tasks-map-sidebar-checkbox input {
+  margin: 0;
+}
+
+.tasks-map-sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px;
+}
+
+.tasks-map-sidebar-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 20px;
+  font-size: 13px;
+}
+
+/* Sidebar Card */
+.tasks-map-sidebar-card {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  cursor: grab;
+  transition: all 0.15s ease;
+}
+
+.tasks-map-sidebar-card:hover {
+  background: rgba(var(--interactive-accent-rgb), 0.1);
+  border-color: var(--interactive-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tasks-map-sidebar-card:active {
+  cursor: grabbing;
+}
+
+.tasks-map-sidebar-card.on-canvas {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.tasks-map-sidebar-card.on-canvas:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.tasks-map-sidebar-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tasks-map-sidebar-card-status {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.tasks-map-sidebar-card-title {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-normal);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-map-sidebar-card-badge {
+  font-size: 11px;
+  color: var(--text-success);
+  background: var(--background-modifier-success);
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.tasks-map-sidebar-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.tasks-map-sidebar-card-tag {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+/* Drop indicator on canvas */
+.tasks-map-graph-container.drag-over {
+  background: rgba(var(--interactive-accent-rgb), 0.05);
+}
+
+.tasks-map-graph-container.drag-over::after {
+  content: "Drop to add task";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 16px 32px;
+  background: var(--background-secondary);
+  border: 2px dashed var(--interactive-accent);
+  border-radius: 12px;
+  color: var(--text-accent);
+  font-size: 14px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* Context Menu Styles */
+.tasks-map-context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  min-width: 120px;
+}
+
+.tasks-map-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-normal);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+}
+
+.tasks-map-context-menu-item:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-error);
 }

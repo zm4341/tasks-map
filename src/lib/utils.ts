@@ -522,6 +522,35 @@ export function getLayoutedElements(
 }
 
 /**
+ * Generate a short random ID (6 characters)
+ */
+function generateShortId(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+/**
+ * Get the proper 🆔 ID for linking - extract from text or generate new
+ */
+function getProperIdForLinking(task: Task): string {
+  // If task.id is a path:line format (contains / and :), extract 🆔 from text or generate new
+  if (task.id && (task.id.includes("/") || task.id.length > 10)) {
+    // Try to extract existing 🆔 from text
+    const idMatch = task.text?.match(/🆔\s*(\w+)/);
+    if (idMatch) {
+      return idMatch[1];
+    }
+    // Generate a new short ID
+    return generateShortId();
+  }
+  return task.id;
+}
+
+/**
  * Wrapper to add a shared hash to two tasks in their respective files, with different emojis.
  * @param vault Obsidian vault instance
  * @param fromTask The source task (will get 🆔 if it does not already have it)
@@ -536,7 +565,8 @@ export async function addLinkSignsBetweenTasks(
 ): Promise<string | undefined> {
   if (!fromTask.link || !toTask.link) return undefined;
 
-  const id = fromTask.id;
+  // Get proper short ID for linking (not path:line format)
+  const id = getProperIdForLinking(fromTask);
 
   // Handle note-based tasks differently (they use frontmatter, not inline metadata)
   if (toTask.type === "note") {
@@ -905,8 +935,8 @@ export async function removeSignFromTaskInFile(
           );
         }
       } else {
-        // Try emoji CSV format
-        const csvRegex = /⛔\s*([a-zA-Z0-9]{6}(?:,[a-zA-Z0-9]{6})*)/;
+        // Try emoji CSV format (match any alphanumeric IDs, not just 6 chars)
+        const csvRegex = /⛔\s*([a-zA-Z0-9]+(?:,[a-zA-Z0-9]+)*)/;
         const csvMatch = lines[taskLineIdx].match(csvRegex);
 
         if (csvMatch) {
@@ -922,7 +952,7 @@ export async function removeSignFromTaskInFile(
             // Update CSV with remaining IDs
             const newCsvList = filteredIds.join(",");
             lines[taskLineIdx] = lines[taskLineIdx].replace(
-              csvRegex,
+              csvMatch[0],
               `⛔ ${newCsvList}`
             );
           }
