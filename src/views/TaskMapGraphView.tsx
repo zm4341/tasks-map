@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useMemo, useRef } from "react";
+import ReactDOM from "react-dom";
 import ReactFlow, {
   Background,
   useNodesState,
@@ -418,8 +419,16 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
   // Register canvas operations with plugin for sidebar access
   useEffect(() => {
     plugin.registerCanvasOperations(addTaskToCanvas, getCanvasTaskIds);
+    
+    // Register auto-refresh callback
+    plugin.registerCanvasRefresh(() => {
+      console.log("[TasksMap Canvas] Auto-refresh triggered");
+      updateNodes();
+    });
+    
     return () => {
       plugin.unregisterCanvasOperations();
+      plugin.unregisterCanvasRefresh();
     };
   }, [plugin, addTaskToCanvas, getCanvasTaskIds]);
 
@@ -689,11 +698,9 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
           <Background />
         </ReactFlow>
         {selectedEdge && <DeleteEdgeButton onDelete={onDeleteSelectedEdge} />}
-        {contextMenu && (
+        {contextMenu && ReactDOM.createPortal(
           <div
             className="tasks-map-context-menu"
-            data-x={contextMenu.x}
-            data-y={contextMenu.y}
             ref={(el) => {
               if (el) {
                 el.style.left = `${contextMenu.x}px`;
@@ -707,7 +714,8 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
             >
               🗑️ Delete Node
             </button>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </TagsContext.Provider>

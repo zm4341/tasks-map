@@ -782,6 +782,33 @@ If your plugin does not need CSS, delete this file.
   white-space: nowrap;
 }
 
+.tasks-map-sidebar-card-open-btn {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.tasks-map-sidebar-card:hover .tasks-map-sidebar-card-open-btn {
+  opacity: 1;
+}
+
+.tasks-map-sidebar-card-open-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-accent);
+}
+
 .tasks-map-sidebar-card-badge {
   font-size: 11px;
   color: var(--text-success);

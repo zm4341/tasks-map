@@ -1,4 +1,4 @@
-import { WorkspaceLeaf, Plugin } from "obsidian";
+import { WorkspaceLeaf, Plugin, TFile } from "obsidian";
 
 import TaskMapGraphItemView, { VIEW_TYPE } from "./views/TaskMapGraphItemView";
 import TaskSidebarView, { SIDEBAR_VIEW_TYPE } from "./views/TaskSidebarView";
@@ -23,6 +23,16 @@ export default class TasksMapPlugin extends Plugin {
   
   // Sidebar tasks storage (shared with canvas for updates)
   private _sidebarTasks: Task[] = [];
+  
+  // Auto-refresh callbacks
+  private _sidebarRefreshCallback: (() => void) | null = null;
+  private _canvasRefreshCallback: (() => void) | null = null;
+  
+  // Debounce timer
+  private _refreshDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  
+  // Tasks folder path to monitor
+  private readonly TASKS_FOLDER = "Spaces/2.Area/Tasks";
 
   async onload() {
     // Load all data (settings + graph data)
@@ -61,6 +71,83 @@ export default class TasksMapPlugin extends Plugin {
     this.addRibbonIcon("map", "Open tasks map view", () => {
       this.activateViewInMainArea();
     });
+
+    // Register auto-refresh events
+    this.setupAutoRefresh();
+  }
+
+  /**
+   * Setup auto-refresh event listeners
+   */
+  private setupAutoRefresh() {
+    // Listen for metadata cache changes (triggered when file content changes)
+    this.registerEvent(
+      this.app.metadataCache.on("changed", (file: TFile) => {
+        if (file.path.startsWith(this.TASKS_FOLDER) && file.extension === "md") {
+          console.log("[TasksMap] File changed:", file.path);
+          this.scheduleRefresh();
+        }
+      })
+    );
+
+    // Refresh when switching to canvas or sidebar view
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        if (!leaf) return;
+        const viewType = leaf.view.getViewType();
+        if (viewType === VIEW_TYPE || viewType === SIDEBAR_VIEW_TYPE) {
+          console.log("[TasksMap] Switched to tasks view");
+          this.triggerRefresh();
+        }
+      })
+    );
+  }
+
+  /**
+   * Schedule a debounced refresh (300ms)
+   */
+  private scheduleRefresh() {
+    if (this._refreshDebounceTimer) {
+      clearTimeout(this._refreshDebounceTimer);
+    }
+    this._refreshDebounceTimer = setTimeout(() => {
+      this.triggerRefresh();
+    }, 300);
+  }
+
+  /**
+   * Trigger refresh on sidebar and canvas
+   */
+  private triggerRefresh() {
+    console.log("[TasksMap] Triggering auto-refresh");
+    // Refresh sidebar first
+    if (this._sidebarRefreshCallback) {
+      this._sidebarRefreshCallback();
+    }
+    // Then refresh canvas with a small delay
+    setTimeout(() => {
+      if (this._canvasRefreshCallback) {
+        this._canvasRefreshCallback();
+      }
+    }, 50);
+  }
+
+  // Sidebar refresh callback registration
+  registerSidebarRefresh(callback: () => void) {
+    this._sidebarRefreshCallback = callback;
+  }
+
+  unregisterSidebarRefresh() {
+    this._sidebarRefreshCallback = null;
+  }
+
+  // Canvas refresh callback registration
+  registerCanvasRefresh(callback: () => void) {
+    this._canvasRefreshCallback = callback;
+  }
+
+  unregisterCanvasRefresh() {
+    this._canvasRefreshCallback = null;
   }
 
   async loadAllData() {

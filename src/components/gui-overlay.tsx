@@ -25,37 +25,16 @@ export default function GuiOverlay(props: GuiOverlayProps) {
     setSelectedStatuses,
   } = props;
 
-  return (
-    <>
-      <div className="tasks-map-gui-overlay-tag-select">
-        <TagSelect
-          allTags={allTags}
-          selectedTags={selectedTags}
-          setSelectedTags={setSelectedTags}
-        />
-      </div>
-      <div className="tasks-map-gui-overlay-status-select">
-        <MultiSelect
-          options={allStatuses}
-          selected={selectedStatuses}
-          setSelected={setSelectedStatuses}
-          placeholder="Filter by status..."
-        />
-      </div>
-      <div className="tasks-map-gui-overlay-bottom">
-        <button
-          onClick={loadSavedData}
-          className="tasks-map-gui-overlay-reload-button tasks-map-gui-overlay-load-button"
-        >
-          Load Data
-        </button>
-        <button
-          onClick={reloadTasks}
-          className="tasks-map-gui-overlay-reload-button"
-        >
-          Update Nodes
-        </button>
-      </div>
-    </>
-  );
+  // Hide filter UI and action buttons - auto-refresh handles updates now
+  // Keep the props to avoid breaking changes, but don't render
+  void allTags;
+  void selectedTags;
+  void setSelectedTags;
+  void reloadTasks;
+  void loadSavedData;
+  void allStatuses;
+  void selectedStatuses;
+  void setSelectedStatuses;
+
+  return null;
 }
