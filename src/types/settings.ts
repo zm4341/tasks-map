@@ -46,6 +46,7 @@ export interface SavedNodeData {
     link: string;
     incomingLinks: string[];
     starred: boolean;
+    line?: number;
   };
 }
 

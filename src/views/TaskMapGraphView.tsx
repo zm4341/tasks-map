@@ -54,6 +54,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
   // Persistence: track if this is initial load
   const isInitialLoadRef = useRef(true);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
     selectedEdgeRef.current = selectedEdge;
@@ -75,44 +76,55 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     vaultRef.current = vault;
   }, [vault]);
 
-  // Debounced save function - uses refs to get latest values
+  // Immediate save function - uses refs to get latest values
+  const saveGraphDataImmediate = useCallback(() => {
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+    
+    // Don't save if no nodes
+    if (currentNodes.length === 0) return;
+    
+    const viewport = reactFlowInstance.getViewport();
+    const graphData: GraphData = {
+      nodes: currentNodes.map((n) => ({
+        id: n.id,
+        position: n.position,
+        taskId: n.id,
+        // Save complete task data for restoration
+        taskData: n.data?.task ? {
+          id: n.data.task.id,
+          type: n.data.task.type,
+          summary: n.data.task.summary,
+          text: n.data.task.text,
+          tags: n.data.task.tags,
+          status: n.data.task.status,
+          priority: n.data.task.priority,
+          link: n.data.task.link,
+          incomingLinks: n.data.task.incomingLinks,
+          starred: n.data.task.starred,
+          line: n.data.task.line,
+        } : undefined,
+      })),
+      edges: currentEdges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+      })),
+      viewport: { x: viewport.x, y: viewport.y, zoom: viewport.zoom },
+    };
+    console.log("[TasksMap] Saving graph data:", graphData.nodes.length, "nodes,", graphData.edges.length, "edges");
+    plugin.saveGraphData(graphData);
+  }, [plugin, reactFlowInstance]);
+
+  // Debounced save function
   const saveGraphData = useCallback(() => {
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(() => {
-      const currentNodes = nodesRef.current;
-      const currentEdges = edgesRef.current;
-      const viewport = reactFlowInstance.getViewport();
-      const graphData: GraphData = {
-        nodes: currentNodes.map((n) => ({
-          id: n.id,
-          position: n.position,
-          taskId: n.id,
-          // Save complete task data for restoration
-          taskData: n.data?.task ? {
-            id: n.data.task.id,
-            type: n.data.task.type,
-            summary: n.data.task.summary,
-            text: n.data.task.text,
-            tags: n.data.task.tags,
-            status: n.data.task.status,
-            priority: n.data.task.priority,
-            link: n.data.task.link,
-            incomingLinks: n.data.task.incomingLinks,
-            starred: n.data.task.starred,
-          } : undefined,
-        })),
-        edges: currentEdges.map((e) => ({
-          id: e.id,
-          source: e.source,
-          target: e.target,
-        })),
-        viewport: { x: viewport.x, y: viewport.y, zoom: viewport.zoom },
-      };
-      plugin.saveGraphData(graphData);
-    }, 500);
-  }, [plugin, reactFlowInstance]);
+      saveGraphDataImmediate();
+    }, 200); // Reduced from 500ms to 200ms
+  }, [saveGraphDataImmediate]);
 
   // Custom onNodesChange that also saves
   const handleNodesChange = useCallback(
@@ -130,14 +142,28 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
   );
 
   useEffect(() => {
+    isMountedRef.current = true;
+    
     // Wait for a short moment to ensure vault is ready
     // Tasks may not be immediately available on vault open through the Dataview plugin
     const timeoutId = window.setTimeout(() => {
       loadInitialData();
     }, 1000);
 
-    return () => window.clearTimeout(timeoutId);
-  }, []);
+    return () => {
+      isMountedRef.current = false;
+      window.clearTimeout(timeoutId);
+      
+      // Clear any pending debounced save
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      
+      // Immediately save data when component unmounts (view switched/closed)
+      console.log("[TasksMap] Component unmounting, saving data...");
+      saveGraphDataImmediate();
+    };
+  }, [saveGraphDataImmediate]);
 
   // Maintain a live registry of tags per task for efficient allTags computation
   const [taskTagsRegistry, setTaskTagsRegistry] = React.useState<
@@ -198,8 +224,10 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
   const loadSavedData = useCallback(() => {
     const savedData = plugin.getGraphData();
     
+    console.log("[TasksMap] Loading saved data:", savedData.nodes.length, "nodes,", savedData.edges.length, "edges");
+    
     if (savedData.nodes.length === 0) {
-      new Notice("No saved data to load");
+      // No saved data - this is normal for first use
       return;
     }
     
