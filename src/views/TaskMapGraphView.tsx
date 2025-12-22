@@ -439,10 +439,10 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     [tasks, nodes, settings, saveGraphData]
   );
 
-  // Get IDs of tasks currently on canvas
+  // Get IDs of tasks currently on canvas (use ref to avoid stale closure)
   const getCanvasTaskIds = useCallback(() => {
-    return nodes.map((n) => n.id);
-  }, [nodes]);
+    return nodesRef.current.map((n) => n.id);
+  }, []);
 
   // Register canvas operations with plugin for sidebar access
   useEffect(() => {
