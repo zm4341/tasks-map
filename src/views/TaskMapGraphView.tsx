@@ -78,11 +78,11 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
 
   // Immediate save function - uses refs to get latest values
   const saveGraphDataImmediate = useCallback(() => {
+    // Skip if initial load hasn't completed yet (prevents saving empty state on mount)
+    if (isInitialLoadRef.current) return;
+    
     const currentNodes = nodesRef.current;
     const currentEdges = edgesRef.current;
-    
-    // Don't save if no nodes
-    if (currentNodes.length === 0) return;
     
     const viewport = reactFlowInstance.getViewport();
     const graphData: GraphData = {
