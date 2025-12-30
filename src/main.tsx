@@ -20,6 +20,7 @@ export default class TasksMapPlugin extends Plugin {
   // Callbacks for canvas operations (set by TaskMapGraphView)
   private _addTaskToCanvas: ((taskId: string, position: { x: number; y: number }, taskData?: unknown) => void) | null = null;
   private _getCanvasTaskIds: (() => string[]) | null = null;
+  private _clearCanvasNodes: (() => void) | null = null;
   
   // Sidebar tasks storage (shared with canvas for updates)
   private _sidebarTasks: Task[] = [];
@@ -202,6 +203,11 @@ export default class TasksMapPlugin extends Plugin {
       viewport: { x: 0, y: 0, zoom: 1 },
     };
     await this.saveAllData();
+    
+    // Also clear canvas nodes if canvas is open
+    if (this._clearCanvasNodes) {
+      this._clearCanvasNodes();
+    }
   }
 
   async activateViewInMainArea() {
@@ -227,15 +233,18 @@ export default class TasksMapPlugin extends Plugin {
   // Canvas operation registration (called by TaskMapGraphView)
   registerCanvasOperations(
     addTask: (taskId: string, position: { x: number; y: number }, taskData?: unknown) => void,
-    getTaskIds: () => string[]
+    getTaskIds: () => string[],
+    clearNodes?: () => void
   ) {
     this._addTaskToCanvas = addTask;
     this._getCanvasTaskIds = getTaskIds;
+    this._clearCanvasNodes = clearNodes || null;
   }
 
   unregisterCanvasOperations() {
     this._addTaskToCanvas = null;
     this._getCanvasTaskIds = null;
+    this._clearCanvasNodes = null;
   }
 
   // Called by sidebar to add task to canvas

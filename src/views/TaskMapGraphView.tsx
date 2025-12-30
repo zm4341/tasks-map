@@ -444,9 +444,16 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     return nodesRef.current.map((n) => n.id);
   }, []);
 
+  // Clear all nodes from canvas
+  const clearCanvasNodes = useCallback(() => {
+    setNodes([]);
+    setEdges([]);
+    console.log("[TasksMap Canvas] Canvas cleared");
+  }, [setNodes, setEdges]);
+
   // Register canvas operations with plugin for sidebar access
   useEffect(() => {
-    plugin.registerCanvasOperations(addTaskToCanvas, getCanvasTaskIds);
+    plugin.registerCanvasOperations(addTaskToCanvas, getCanvasTaskIds, clearCanvasNodes);
     
     // Register auto-refresh callback
     plugin.registerCanvasRefresh(() => {
@@ -458,7 +465,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
       plugin.unregisterCanvasOperations();
       plugin.unregisterCanvasRefresh();
     };
-  }, [plugin, addTaskToCanvas, getCanvasTaskIds]);
+  }, [plugin, addTaskToCanvas, getCanvasTaskIds, clearCanvasNodes]);
 
   // Drag and drop from sidebar
   const [isDragOver, setIsDragOver] = React.useState(false);
