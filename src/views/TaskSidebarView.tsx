@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, TFolder } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, TFolder, Notice } from "obsidian";
 import { createRoot, Root } from "react-dom/client";
 import TasksMapPlugin from "../main";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -222,18 +222,36 @@ function SidebarContent({ plugin }: SidebarContentProps) {
     }
   }, [plugin]);
 
+  // Clear canvas data
+  const handleClearCanvas = useCallback(async () => {
+    if (confirm("确定要清空画布数据吗？这将删除所有节点和连线。")) {
+      await plugin.clearGraphData();
+      setCanvasTaskIds([]);
+      new Notice("Canvas data cleared");
+    }
+  }, [plugin]);
+
   return (
     <div className="tasks-map-sidebar">
       <div className="tasks-map-sidebar-header">
         <h4>Tasks</h4>
-        <button
-          className="tasks-map-sidebar-refresh-button"
-          onClick={() => scanTasks(true)}
-          disabled={isLoading}
-          title="Refresh tasks"
-        >
-          {isLoading ? "..." : "↻"}
-        </button>
+        <div className="tasks-map-sidebar-header-buttons">
+          <button
+            className="tasks-map-sidebar-refresh-button"
+            onClick={() => scanTasks(true)}
+            disabled={isLoading}
+            title="Refresh tasks"
+          >
+            {isLoading ? "..." : "↻"}
+          </button>
+          <button
+            className="tasks-map-sidebar-clear-button"
+            onClick={handleClearCanvas}
+            title="Clear canvas data"
+          >
+            🗑
+          </button>
+        </div>
       </div>
       
       <div className="tasks-map-sidebar-filters">

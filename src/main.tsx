@@ -194,6 +194,16 @@ export default class TasksMapPlugin extends Plugin {
     await this.saveAllData();
   }
 
+  // Clear all graph data (nodes, edges, viewport)
+  async clearGraphData() {
+    this.graphData = {
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    };
+    await this.saveAllData();
+  }
+
   async activateViewInMainArea() {
     const leaf = this.app.workspace.getLeaf(true); // true = main area
     await leaf.setViewState({ type: VIEW_TYPE, active: true });

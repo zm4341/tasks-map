@@ -684,6 +684,27 @@ If your plugin does not need CSS, delete this file.
   cursor: not-allowed;
 }
 
+.tasks-map-sidebar-header-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.tasks-map-sidebar-clear-button {
+  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.tasks-map-sidebar-clear-button:hover {
+  background: var(--background-modifier-error);
+  border-color: var(--text-error);
+  color: var(--text-error);
+}
+
 .tasks-map-sidebar-filters {
   display: flex;
   flex-direction: column;
