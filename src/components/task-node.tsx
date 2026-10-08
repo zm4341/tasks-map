@@ -211,6 +211,19 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
         {priority && <TaskPriority priority={priority} />}
       </div>
 
+      {showTags && task.context && (
+        <div className="tasks-map-task-context">
+          <span className="tasks-map-task-context-icon">
+            <AtSign size={13} />
+          </span>
+          <TaskContext
+            app={app}
+            context={task.context}
+            sourcePath={task.link}
+          />
+        </div>
+      )}
+
       {showTags &&
         projects.map((project) => <TaskProject key={project} path={project} />)}
 
@@ -252,19 +265,6 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
               />
             </div>
           )}
-        </div>
-      )}
-
-      {showTags && task.context && (
-        <div className="tasks-map-task-context">
-          <span className="tasks-map-task-context-icon">
-            <AtSign size={13} />
-          </span>
-          <TaskContext
-            app={app}
-            context={task.context}
-            sourcePath={task.link}
-          />
         </div>
       )}
 

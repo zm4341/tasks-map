@@ -243,13 +243,14 @@ body {
   padding-left: 28px;
 }
 
-/* The context of the task, below its tags, its icon in the column of the
-   status icon like the icon of the project */
+/* The context of the task, right below its title, its icon in the column of
+   the status icon like the icon of the project */
 .tasks-map-task-context {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
+  margin-top: -2px;
   color: var(--text-muted);
   font-size: 12px;
   line-height: 16px;
