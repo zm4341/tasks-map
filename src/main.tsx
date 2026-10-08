@@ -12,8 +12,9 @@ import {
   SidebarState,
   DEFAULT_SIDEBAR_STATE,
 } from "./types/settings";
-import { createCanvas, getNextCanvasName } from "./lib/canvases";
+import { createCanvas, getNextCanvasName, toSavedTask } from "./lib/canvases";
 import { parsePluginData } from "./lib/plugin-data";
+import { relinkTasks, renameTask } from "./lib/task-relink";
 import { TasksMapSettingTab } from "./settings/settings-tab";
 import { Task } from "./types/task";
 import { registerTaskStatusIcons } from "./components/task-status-icon";
@@ -22,7 +23,9 @@ import { registerNodeColorIcons } from "./components/node-color-icon";
 // What map views hear about changes to the canvases
 export type CanvasEvent =
   | { type: "list" } // added, renamed or deleted
-  | { type: "clear"; canvasId: string };
+  | { type: "clear"; canvasId: string }
+  // A note or folder with tasks was renamed or moved
+  | { type: "rename"; oldPath: string; newPath: string };
 
 export default class TasksMapPlugin extends Plugin {
   settings: TasksMapSettings = DEFAULT_SETTINGS;
@@ -122,6 +125,7 @@ export default class TasksMapPlugin extends Plugin {
       this.app.vault.on("rename", (file, oldPath) => {
         // Into, out of or within the tasks folder
         if (this.holdsTasks(file) || this.holdsTasks(file, oldPath)) {
+          this.renameCanvasTasks(oldPath, file.path);
           this.scheduleRefresh();
         }
       })
@@ -287,6 +291,41 @@ export default class TasksMapPlugin extends Plugin {
     this.onCanvasListChange();
   }
 
+  // Nodes follow their tasks when notes are renamed or moved
+  private renameCanvasTasks(oldPath: string, newPath: string) {
+    let renamed = false;
+    for (const node of this.canvases.flatMap((canvas) => canvas.nodes)) {
+      const task = node.taskData && renameTask(node.taskData, oldPath, newPath);
+      if (!task) continue;
+      node.taskData = task;
+      node.taskId = task.id;
+      renamed = true;
+    }
+    // The map view renames the tasks of the nodes it shows, saved or not
+    this.emitCanvasEvent({ type: "rename", oldPath, newPath });
+    if (renamed) this.saveAllData();
+  }
+
+  // Nodes follow their tasks when these move in their notes. An open map view
+  // does this for the nodes it shows.
+  private relinkCanvasTasks(tasks: Task[]) {
+    let relinked = false;
+    for (const canvas of this.canvases) {
+      const found = relinkTasks(
+        canvas.nodes.map((node) => node.taskData),
+        tasks
+      );
+      canvas.nodes.forEach((node, i) => {
+        const task = found[i];
+        if (!task || task.id === node.taskData?.id) return;
+        node.taskData = toSavedTask(task);
+        node.taskId = task.id;
+        relinked = true;
+      });
+    }
+    if (relinked) this.saveAllData();
+  }
+
   // Removes the nodes and edges of a canvas, the tasks stay in their notes
   clearCanvas(id: string) {
     const canvas = this.getCanvas(id);
@@ -366,6 +405,7 @@ export default class TasksMapPlugin extends Plugin {
   // Called by sidebar to register its tasks (for canvas updates)
   setSidebarTasks(tasks: Task[]) {
     this._sidebarTasks = tasks;
+    if (!this._getCanvasTaskIds) this.relinkCanvasTasks(tasks);
   }
 
   // Called by canvas to get sidebar tasks for updates

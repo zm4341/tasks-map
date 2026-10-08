@@ -30,27 +30,32 @@ export const DEFAULT_SETTINGS: TasksMapSettings = {
 
 // ========== Graph Data Persistence ==========
 
+// The task a node shows, to show it before the notes are scanned
+export interface SavedTaskData {
+  id: string;
+  type: string;
+  summary: string;
+  text: string;
+  tags: string[];
+  status: string;
+  statusMark?: string;
+  priority: string;
+  link: string;
+  incomingLinks: string[];
+  starred: boolean;
+  line?: number;
+}
+
 export interface SavedNodeData {
   id: string;
   position: { x: number; y: number };
+  // The ID of the task, which changes when the task moves in its note or the
+  // note is renamed. The ID of the node stays.
   taskId: string;
   // The color picked for the node on this canvas
   color?: string;
   // Store complete task data for restoration
-  taskData?: {
-    id: string;
-    type: string;
-    summary: string;
-    text: string;
-    tags: string[];
-    status: string;
-    statusMark?: string;
-    priority: string;
-    link: string;
-    incomingLinks: string[];
-    starred: boolean;
-    line?: number;
-  };
+  taskData?: SavedTaskData;
 }
 
 export interface SavedEdgeData {

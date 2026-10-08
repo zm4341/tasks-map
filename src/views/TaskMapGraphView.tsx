@@ -20,6 +20,8 @@ import { TaskFactory } from "src/lib/task-factory";
 import { ALL_TASK_STATUSES, getTaskStatusConfig } from "src/lib/task-status";
 import { localize, LocalizedText } from "src/lib/i18n";
 import { isNodeColor, NODE_COLORS, NodeColor } from "src/lib/node-colors";
+import { getFreeNodeId, toSavedTask } from "src/lib/canvases";
+import { relinkTasks, renameTask } from "src/lib/task-relink";
 import { Task, TaskNode as TaskNodeType } from "src/types/task";
 import GuiOverlay from "src/components/gui-overlay";
 import TaskNode from "src/components/task-node";
@@ -121,23 +123,10 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
       nodes: currentNodes.map((n) => ({
         id: n.id,
         position: n.position,
-        taskId: n.id,
+        taskId: n.data?.task?.id ?? n.id,
         color: n.data?.color,
         // Save complete task data for restoration
-        taskData: n.data?.task ? {
-          id: n.data.task.id,
-          type: n.data.task.type,
-          summary: n.data.task.summary,
-          text: n.data.task.text,
-          tags: n.data.task.tags,
-          status: n.data.task.status,
-          statusMark: n.data.task.statusMark,
-          priority: n.data.task.priority,
-          link: n.data.task.link,
-          incomingLinks: n.data.task.incomingLinks,
-          starred: n.data.task.starred,
-          line: n.data.task.line,
-        } : undefined,
+        taskData: n.data?.task ? toSavedTask(n.data.task) : undefined,
       })),
       edges: currentEdges.map((e) => ({
         id: e.id,
@@ -328,31 +317,36 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     
     const isVertical = settings.layoutDirection === "Vertical";
 
-    // Tasks scanned since the canvas was saved are more recent
-    const scannedTasks = new Map(tasksRef.current.map((t) => [t.id, t]));
-    
+    // Only restore nodes with task data
+    const savedNodes = savedData.nodes.filter((n) => n.taskData);
+
+    // Tasks scanned since the canvas was saved are more recent, and may have
+    // moved in their notes
+    const scannedTasks = relinkTasks(
+      savedNodes.map((n) => n.taskData),
+      tasksRef.current
+    );
+
     // Restore nodes from saved data
-    const restoredNodes: TaskNodeType[] = savedData.nodes
-      .filter((n) => n.taskData) // Only restore nodes with task data
-      .map((savedNode) => ({
-        id: savedNode.id,
-        position: savedNode.position,
-        data: {
-          task: scannedTasks.get(savedNode.id) ?? (savedNode.taskData as Task),
-          color: isNodeColor(savedNode.color) ? savedNode.color : undefined,
-          layoutDirection: settings.layoutDirection,
-          showPriorities: settings.showPriorities,
-          showTags: settings.showTags,
-          debugVisualization: settings.debugVisualization,
-          tagColorMode: settings.tagColorMode,
-          tagColorSeed: settings.tagColorSeed,
-          tagStaticColor: settings.tagStaticColor,
-        },
-        type: "task" as const,
-        sourcePosition: isVertical ? Position.Bottom : Position.Right,
-        targetPosition: isVertical ? Position.Top : Position.Left,
-        draggable: true,
-      }));
+    const restoredNodes: TaskNodeType[] = savedNodes.map((savedNode, i) => ({
+      id: savedNode.id,
+      position: savedNode.position,
+      data: {
+        task: scannedTasks[i] ?? (savedNode.taskData as Task),
+        color: isNodeColor(savedNode.color) ? savedNode.color : undefined,
+        layoutDirection: settings.layoutDirection,
+        showPriorities: settings.showPriorities,
+        showTags: settings.showTags,
+        debugVisualization: settings.debugVisualization,
+        tagColorMode: settings.tagColorMode,
+        tagColorSeed: settings.tagColorSeed,
+        tagStaticColor: settings.tagStaticColor,
+      },
+      type: "task" as const,
+      sourcePosition: isVertical ? Position.Bottom : Position.Right,
+      targetPosition: isVertical ? Position.Top : Position.Left,
+      draggable: true,
+    }));
     
     // Restore edges. Edges saved before nodes had a handle on every side
     // connect the sides the layout direction used.
@@ -465,31 +459,17 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     // Update tasks state
     setTasks(scannedTasks);
     
-    // Update existing nodes with new task data, preserving positions
-    // Matching by node.id (which is path:line format)
+    // Update existing nodes with new task data, preserving positions. Nodes
+    // follow their tasks when these move in their notes.
     setNodes((currentNodes) => {
-      console.log("setNodes - currentNodes:", currentNodes.length);
-      return currentNodes.map((node) => {
-        const nodeTask = node.data?.task;
-        if (!nodeTask) return node;
-        
-        // Direct match by node ID (path:line format)
-        const updatedTask = scannedTasks.find((t) => t.id === node.id);
-        
-        console.log("Matching node:", node.id, "found:", !!updatedTask);
-        
-        if (updatedTask) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              task: updatedTask,
-            },
-          };
-        }
-        
-        // Keep node unchanged if no match found
-        return node;
+      const found = relinkTasks(
+        currentNodes.map((node) => node.data?.task),
+        scannedTasks
+      );
+      // Keep node unchanged if no match found
+      return currentNodes.map((node, i) => {
+        const task = found[i];
+        return task ? { ...node, data: { ...node.data, task } } : node;
       });
     });
     
@@ -510,14 +490,14 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
       }
       
       // Check if already on canvas
-      if (nodes.some((n) => n.id === task.id)) {
+      if (nodes.some((n) => n.data?.task?.id === task.id)) {
         new Notice("Task already on canvas");
         return;
       }
-      
+
       const isVertical = settings.layoutDirection === "Vertical";
       const newNode: TaskNodeType = {
-        id: task.id,
+        id: getFreeNodeId(task.id, nodes.map((n) => n.id)),
         position,
         data: {
           task,
@@ -546,7 +526,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
 
   // Get IDs of tasks currently on canvas (use ref to avoid stale closure)
   const getCanvasTaskIds = useCallback(() => {
-    return nodesRef.current.map((n) => n.id);
+    return nodesRef.current.map((n) => n.data?.task?.id ?? n.id);
   }, []);
 
   // Register canvas operations with plugin for sidebar access
@@ -890,6 +870,19 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
       plugin.subscribeCanvases((event) => {
         if (event.type === "list") {
           setCanvasList(plugin.getCanvasList());
+          return;
+        }
+        if (event.type === "rename") {
+          // A note was renamed or moved, nodes not saved yet follow too
+          const rename = (node: Node) => {
+            const task =
+              node.data?.task &&
+              renameTask(node.data.task, event.oldPath, event.newPath);
+            return task ? { ...node, data: { ...node.data, task } } : node;
+          };
+          nodesRef.current = nodesRef.current.map(rename);
+          setNodes((nds) => nds.map(rename));
+          saveGraphData();
           return;
         }
         if (event.canvasId !== canvasIdRef.current) return;
