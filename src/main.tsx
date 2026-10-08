@@ -1,4 +1,4 @@
-import { WorkspaceLeaf, Plugin, TFile } from "obsidian";
+import { WorkspaceLeaf, Plugin, TAbstractFile, TFile } from "obsidian";
 
 import TaskMapGraphItemView, { VIEW_TYPE } from "./views/TaskMapGraphItemView";
 import TaskSidebarView, { SIDEBAR_VIEW_TYPE } from "./views/TaskSidebarView";
@@ -105,8 +105,23 @@ export default class TasksMapPlugin extends Plugin {
     // Listen for metadata cache changes (triggered when file content changes)
     this.registerEvent(
       this.app.metadataCache.on("changed", (file: TFile) => {
-        if (file.path.startsWith(this.TASKS_FOLDER) && file.extension === "md") {
+        if (this.holdsTasks(file)) {
           console.log("[TasksMap] File changed:", file.path);
+          this.scheduleRefresh();
+        }
+      })
+    );
+
+    // Deleting or moving a file leaves the metadata cache quiet
+    this.registerEvent(
+      this.app.vault.on("delete", (file) => {
+        if (this.holdsTasks(file)) this.scheduleRefresh();
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        // Into, out of or within the tasks folder
+        if (this.holdsTasks(file) || this.holdsTasks(file, oldPath)) {
           this.scheduleRefresh();
         }
       })
@@ -122,6 +137,14 @@ export default class TasksMapPlugin extends Plugin {
           this.triggerRefresh();
         }
       })
+    );
+  }
+
+  // Notes in the tasks folder, and its subfolders, hold the tasks
+  private holdsTasks(file: TAbstractFile, path = file.path) {
+    if (file instanceof TFile && file.extension !== "md") return false;
+    return (
+      path === this.TASKS_FOLDER || path.startsWith(`${this.TASKS_FOLDER}/`)
     );
   }
 

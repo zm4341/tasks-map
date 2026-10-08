@@ -556,7 +556,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     // Register auto-refresh callback
     plugin.registerCanvasRefresh(() => {
       console.log("[TasksMap Canvas] Auto-refresh triggered");
-      updateNodes();
+      updateNodes(true);
     });
     
     return () => {

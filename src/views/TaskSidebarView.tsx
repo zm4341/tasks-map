@@ -78,20 +78,14 @@ function SidebarContent({ plugin }: SidebarContentProps) {
   const [canvasTaskIds, setCanvasTaskIds] = useState<string[]>(() =>
     plugin.getCanvasTaskIds()
   );
-  const [isLoading, setIsLoading] = useState(false);
-  
+
   // Track if component is mounted
   const isMountedRef = useRef(true);
 
   // Scan tasks from folder (useCallback for stable reference)
-  const scanTasks = useCallback(async (showLoading = true) => {
-    if (showLoading) setIsLoading(true);
-    
+  const scanTasks = useCallback(async () => {
     const tasksFolder = plugin.app.vault.getAbstractFileByPath("Spaces/2.Area/Tasks");
-    if (!tasksFolder || !(tasksFolder instanceof TFolder)) {
-      if (showLoading) setIsLoading(false);
-      return;
-    }
+    if (!tasksFolder || !(tasksFolder instanceof TFolder)) return;
 
     const allTasks: Task[] = [];
     const projectSet = new Set<string>();
@@ -148,7 +142,6 @@ function SidebarContent({ plugin }: SidebarContentProps) {
     if (isMountedRef.current) {
       setTasks(allTasks);
       setProjects(["all", ...Array.from(projectSet).sort()]);
-      if (showLoading) setIsLoading(false);
     }
     
     // Register tasks with plugin so canvas can use them for updates
@@ -159,11 +152,11 @@ function SidebarContent({ plugin }: SidebarContentProps) {
   useEffect(() => {
     isMountedRef.current = true;
     scanTasks();
-    
+
     // Register auto-refresh callback
     plugin.registerSidebarRefresh(() => {
       console.log("[TasksMap Sidebar] Auto-refresh triggered");
-      scanTasks(false); // silent refresh (no loading indicator)
+      scanTasks();
     });
     
     // Refresh canvas task IDs periodically, re-rendering only on changes
@@ -270,20 +263,6 @@ function SidebarContent({ plugin }: SidebarContentProps) {
 
   return (
     <div className="tasks-map-sidebar">
-      <div className="tasks-map-sidebar-header">
-        <h4>Tasks</h4>
-        <div className="tasks-map-sidebar-header-buttons">
-          <button
-            className="tasks-map-sidebar-refresh-button"
-            onClick={() => scanTasks(true)}
-            disabled={isLoading}
-            title="Refresh tasks"
-          >
-            {isLoading ? "..." : "↻"}
-          </button>
-        </div>
-      </div>
-      
       <div className="tasks-map-sidebar-filters">
         <select
           value={selectedProject}
