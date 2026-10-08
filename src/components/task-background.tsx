@@ -1,8 +1,10 @@
 import React from "react";
 import { TaskStatus } from "src/types/task";
+import { NodeColor } from "src/lib/node-colors";
 
 interface TaskBackgroundProps {
   status: TaskStatus;
+  color?: NodeColor;
   starred?: boolean;
   expanded?: boolean;
   debugVisualization?: boolean;
@@ -20,6 +22,7 @@ const STATUS_CLASSES: Record<TaskStatus, string> = {
 
 export function TaskBackground({
   status,
+  color,
   starred = false,
   expanded,
   debugVisualization,
@@ -28,6 +31,7 @@ export function TaskBackground({
   const className = [
     "tasks-map-task-background",
     STATUS_CLASSES[status],
+    color && `has-color tasks-map-task-background--color-${color}`,
     starred && "tasks-map-task-background--starred",
     expanded && "tasks-map-task-background--expanded",
     debugVisualization && "tasks-map-task-background--debug",

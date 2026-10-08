@@ -1,4 +1,5 @@
 import { Node, Edge } from "reactflow";
+import { NodeColor } from "src/lib/node-colors";
 
 // The statuses of TaskGenius: not started, in progress, completed, abandoned,
 // planned and archived (see src/lib/task-status.ts)
@@ -33,6 +34,7 @@ export interface Task {
 
 export interface TaskNodeData {
   task: Task;
+  color?: NodeColor;
   layoutDirection?: "Horizontal" | "Vertical";
   showPriorities?: boolean;
   showTags?: boolean;

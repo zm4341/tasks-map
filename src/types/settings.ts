@@ -34,6 +34,8 @@ export interface SavedNodeData {
   id: string;
   position: { x: number; y: number };
   taskId: string;
+  // The color picked for the node on this canvas
+  color?: string;
   // Store complete task data for restoration
   taskData?: {
     id: string;

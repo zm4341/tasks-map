@@ -17,6 +17,7 @@ import { parsePluginData } from "./lib/plugin-data";
 import { TasksMapSettingTab } from "./settings/settings-tab";
 import { Task } from "./types/task";
 import { registerTaskStatusIcons } from "./components/task-status-icon";
+import { registerNodeColorIcons } from "./components/node-color-icon";
 
 // What map views hear about changes to the canvases
 export type CanvasEvent =
@@ -57,6 +58,7 @@ export default class TasksMapPlugin extends Plugin {
     await this.loadAllData();
 
     registerTaskStatusIcons();
+    registerNodeColorIcons();
 
     // Always register the view - it will handle the Dataview check internally
     this.registerView(

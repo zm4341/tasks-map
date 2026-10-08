@@ -3,6 +3,7 @@ import { Handle, Position, NodeProps } from "reactflow";
 import { Tag as TagIcon } from "lucide-react";
 import { useApp } from "src/hooks/hooks";
 import { Task } from "src/types/task";
+import { NodeColor } from "src/lib/node-colors";
 import { TaskDetails } from "./task-details";
 import { ExpandButton } from "./expand-button";
 import { LinkButton } from "./link-button";
@@ -37,6 +38,7 @@ const HANDLE_POSITIONS = [
 
 interface TaskNodeData {
   task: Task;
+  color?: NodeColor;
   layoutDirection?: "Horizontal" | "Vertical";
   showPriorities?: boolean;
   showTags?: boolean;
@@ -49,6 +51,7 @@ interface TaskNodeData {
 export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
   const {
     task,
+    color,
     showPriorities = true,
     showTags = true,
     debugVisualization = false,
@@ -182,6 +185,7 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
   return (
     <TaskBackground
       status={status}
+      color={color}
       starred={starred}
       expanded={expanded}
       debugVisualization={debugVisualization}
@@ -207,9 +211,7 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
       </div>
 
       {showTags &&
-        projects.map((project) => (
-          <TaskProject key={project} path={project} />
-        ))}
+        projects.map((project) => <TaskProject key={project} path={project} />)}
 
       {/* Shown above the node while it is hovered */}
       <div className="tasks-map-task-node-actions nodrag">

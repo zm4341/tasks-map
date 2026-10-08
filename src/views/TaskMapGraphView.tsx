@@ -1,5 +1,4 @@
 import React, { useEffect, useCallback, useMemo, useRef } from "react";
-import ReactDOM from "react-dom";
 import ReactFlow, {
   Background,
   useNodesState,
@@ -14,12 +13,13 @@ import ReactFlow, {
   Panel,
 } from "reactflow";
 import { Maximize } from "lucide-react";
-import { Notice, TFile, TFolder } from "obsidian";
+import { Menu, Notice, TFile, TFolder } from "obsidian";
 import { useApp } from "src/hooks/hooks";
 import { getAllTasks } from "src/lib/utils";
 import { TaskFactory } from "src/lib/task-factory";
 import { ALL_TASK_STATUSES, getTaskStatusConfig } from "src/lib/task-status";
-import { localize } from "src/lib/i18n";
+import { localize, LocalizedText } from "src/lib/i18n";
+import { isNodeColor, NODE_COLORS, NodeColor } from "src/lib/node-colors";
 import { Task, TaskNode as TaskNodeType } from "src/types/task";
 import GuiOverlay from "src/components/gui-overlay";
 import TaskNode from "src/components/task-node";
@@ -28,6 +28,7 @@ import HashEdge from "src/components/hash-edge";
 import { DeleteEdgeButton } from "src/components/delete-edge-button";
 import { CanvasTabs } from "src/components/canvas-tabs";
 import { AlignmentGuides } from "src/components/alignment-guides";
+import { getNodeColorIconId } from "src/components/node-color-icon";
 import {
   alignBox,
   AlignmentGuide,
@@ -121,6 +122,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
         id: n.id,
         position: n.position,
         taskId: n.id,
+        color: n.data?.color,
         // Save complete task data for restoration
         taskData: n.data?.task ? {
           id: n.data.task.id,
@@ -337,6 +339,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
         position: savedNode.position,
         data: {
           task: scannedTasks.get(savedNode.id) ?? (savedNode.taskData as Task),
+          color: isNodeColor(savedNode.color) ? savedNode.color : undefined,
           layoutDirection: settings.layoutDirection,
           showPriorities: settings.showPriorities,
           showTags: settings.showTags,
@@ -689,37 +692,61 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
 
   const onPaneClick = useCallback(() => {
     setSelectedEdge(null);
-    setContextMenu(null);
   }, [setSelectedEdge]);
-
-  // Context menu state for right-click delete
-  const [contextMenu, setContextMenu] = React.useState<{
-    nodeId: string;
-    x: number;
-    y: number;
-  } | null>(null);
-
-  const onNodeContextMenu = useCallback(
-    (event: React.MouseEvent, node: { id: string }) => {
-      event.preventDefault();
-      setContextMenu({
-        nodeId: node.id,
-        x: event.clientX,
-        y: event.clientY,
-      });
-    },
-    []
-  );
 
   const deleteNode = useCallback(
     (nodeId: string) => {
       setNodes((nds) => nds.filter((n) => n.id !== nodeId));
       setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
-      setContextMenu(null);
       setTimeout(() => saveGraphData(), 100);
       new Notice("Node deleted");
     },
     [setNodes, setEdges, saveGraphData]
+  );
+
+  // The color belongs to the node on this canvas, not to the task
+  const setNodeColor = useCallback(
+    (nodeId: string, color?: NodeColor) => {
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === nodeId ? { ...n, data: { ...n.data, color } } : n
+        )
+      );
+      setTimeout(() => saveGraphData(), 100);
+    },
+    [setNodes, saveGraphData]
+  );
+
+  // Right-clicking a node picks its color or deletes it
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault();
+      const current = isNodeColor(node.data?.color) ? node.data.color : undefined;
+      const colors: Array<{ id?: NodeColor; label: LocalizedText }> = [
+        { label: { en: "Default", zh: "默认" } },
+        ...NODE_COLORS,
+      ];
+
+      const menu = new Menu();
+      for (const { id, label } of colors) {
+        menu.addItem((item) =>
+          item
+            .setTitle(localize(label))
+            .setIcon(getNodeColorIconId(id))
+            .setChecked(id === current)
+            .onClick(() => setNodeColor(node.id, id))
+        );
+      }
+      menu.addSeparator();
+      menu.addItem((item) =>
+        item
+          .setTitle(localize({ en: "Delete node", zh: "删除节点" }))
+          .setIcon("trash-2")
+          .onClick(() => deleteNode(node.id))
+      );
+      menu.showAtMouseEvent(event.nativeEvent);
+    },
+    [setNodeColor, deleteNode]
   );
 
   const onDeleteSelectedEdge = useCallback(async () => {
@@ -807,7 +834,6 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     canvasIdRef.current = id;
     setCanvasId(id);
     setSelectedEdge(null);
-    setContextMenu(null);
     plugin.setActiveCanvas(id);
     loadSavedData(true);
   };
@@ -875,7 +901,6 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
         setNodes([]);
         setEdges([]);
         setSelectedEdge(null);
-        setContextMenu(null);
       }),
     [plugin]
   );
@@ -963,25 +988,6 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
           <Background />
         </ReactFlow>
         {selectedEdge && <DeleteEdgeButton onDelete={onDeleteSelectedEdge} />}
-        {contextMenu && ReactDOM.createPortal(
-          <div
-            className="tasks-map-context-menu"
-            ref={(el) => {
-              if (el) {
-                el.style.left = `${contextMenu.x}px`;
-                el.style.top = `${contextMenu.y}px`;
-              }
-            }}
-          >
-            <button
-              className="tasks-map-context-menu-item"
-              onClick={() => deleteNode(contextMenu.nodeId)}
-            >
-              🗑️ Delete Node
-            </button>
-          </div>,
-          document.body
-        )}
       </div>
     </TagsContext.Provider>
   );
