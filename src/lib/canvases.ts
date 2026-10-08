@@ -52,5 +52,6 @@ export function toSavedTask(task: Task): SavedTaskData {
     starred: task.starred,
     // Tasks scanned by the sidebar know their line
     line: (task as Task & { line?: number }).line,
+    context: task.context,
   };
 }

@@ -19,6 +19,7 @@ import { TasksMapSettingTab } from "./settings/settings-tab";
 import { Task } from "./types/task";
 import { registerTaskStatusIcons } from "./components/task-status-icon";
 import { registerNodeColorIcons } from "./components/node-color-icon";
+import { HOVER_LINK_SOURCE } from "./components/task-context";
 
 // What map views hear about changes to the canvases
 export type CanvasEvent =
@@ -62,6 +63,11 @@ export default class TasksMapPlugin extends Plugin {
 
     registerTaskStatusIcons();
     registerNodeColorIcons();
+    // Like links in notes, links in the map show a preview on Mod+hover
+    this.registerHoverLinkSource(HOVER_LINK_SOURCE, {
+      display: "Tasks Map",
+      defaultMod: true,
+    });
 
     // Always register the view - it will handle the Dataview check internally
     this.registerView(

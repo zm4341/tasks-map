@@ -44,6 +44,7 @@ export interface SavedTaskData {
   incomingLinks: string[];
   starred: boolean;
   line?: number;
+  context?: string;
 }
 
 export interface SavedNodeData {

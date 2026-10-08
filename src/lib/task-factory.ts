@@ -14,6 +14,7 @@ import {
   STAR_PATTERN_GLOBAL,
 } from "./task-regex";
 import { createTaskStatusConfig, TaskStatusConfig } from "./task-status";
+import { parseContext, removeContexts } from "./task-context";
 
 export class TaskFactory {
   private statusConfig: TaskStatusConfig;
@@ -40,6 +41,7 @@ export class TaskFactory {
       link: rawTask.link.path,
       incomingLinks: this.parseIncomingLinks(text),
       starred: this.parseStarred(text),
+      context: parseContext(this.cleanText(text)),
     };
   }
 
@@ -156,7 +158,8 @@ export class TaskFactory {
   }
 
   private makeSummary(text: string): string {
-    return text
+    // The context shows apart from the summary, as in TaskGenius
+    return removeContexts(text)
       .replace(/(?:^|\s)#\S+/g, "")
       .replace(EMOJI_ID_PATTERN_GLOBAL, "") // Remove task IDs: 🆔 abc123
       .replace(DATAVIEW_ID_PATTERN_GLOBAL, "") // Remove Dataview IDs: [[id:: abc123]]

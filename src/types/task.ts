@@ -30,6 +30,8 @@ export interface Task {
   link: string;
   incomingLinks: string[]; // References to other tasks (format depends on type)
   starred: boolean;
+  // The TaskGenius context, after "@": a name, "Dev", or a note, "[[Note]]"
+  context?: string;
 }
 
 export interface TaskNodeData {

@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
-import { Tag as TagIcon } from "lucide-react";
+import { AtSign, Tag as TagIcon } from "lucide-react";
 import { useApp } from "src/hooks/hooks";
 import { Task } from "src/types/task";
 import { NodeColor } from "src/lib/node-colors";
@@ -13,6 +13,7 @@ import { TaskStatusToggle } from "./task-status";
 import { TaskBackground } from "./task-background";
 import { TaskPriority } from "./task-priority";
 import { TaskProject } from "./task-project";
+import { TaskContext } from "./task-context";
 import { TagInput } from "./tag-input";
 import { useSummaryRenderer } from "../hooks/use-summary-renderer";
 import {
@@ -251,6 +252,19 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
               />
             </div>
           )}
+        </div>
+      )}
+
+      {showTags && task.context && (
+        <div className="tasks-map-task-context">
+          <span className="tasks-map-task-context-icon">
+            <AtSign size={13} />
+          </span>
+          <TaskContext
+            app={app}
+            context={task.context}
+            sourcePath={task.link}
+          />
         </div>
       )}
 

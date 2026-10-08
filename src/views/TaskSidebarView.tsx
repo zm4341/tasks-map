@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, TFolder } from "obsidian";
+import { App, ItemView, WorkspaceLeaf, TFile, TFolder } from "obsidian";
 import { createRoot, Root } from "react-dom/client";
 import TasksMapPlugin from "../main";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -6,20 +6,26 @@ import { Task } from "../types/task";
 import { TaskFactory } from "../lib/task-factory";
 import { getStatusLabel, getTaskStatusConfig } from "../lib/task-status";
 import { TaskStatusIcon } from "../components/task-status-icon";
+import { TaskContext } from "../components/task-context";
 import { ChevronRight } from "lucide-react";
 import { localize } from "../lib/i18n";
 import { groupByProject, NO_PROJECT } from "../lib/project-groups";
+import { getProjectTagPrefix, splitProjectTags } from "../lib/project-tags";
 
 export const SIDEBAR_VIEW_TYPE = "tasks-map-sidebar";
 
 interface TaskCardProps {
+  app: App;
   task: Task;
   isOnCanvas: boolean;
   onDragStart: (e: React.DragEvent, task: Task) => void;
   onOpenFile: (task: Task) => void;
 }
 
-function TaskCard({ task, isOnCanvas, onDragStart, onOpenFile }: TaskCardProps) {
+function TaskCard({ app, task, isOnCanvas, onDragStart, onOpenFile }: TaskCardProps) {
+  // The project shows as the group of the card, not among its tags
+  const { tags } = splitProjectTags(task.tags, getProjectTagPrefix(app));
+
   return (
     <div
       className={`tasks-map-sidebar-card tasks-map-sidebar-card--${task.status} ${isOnCanvas ? "on-canvas" : ""}`}
@@ -46,13 +52,23 @@ function TaskCard({ task, isOnCanvas, onDragStart, onOpenFile }: TaskCardProps) 
         </button>
         {isOnCanvas && <span className="tasks-map-sidebar-card-badge">✓</span>}
       </div>
-      {task.tags.length > 0 && (
+      {(tags.length > 0 || task.context) && (
         <div className="tasks-map-sidebar-card-tags">
-          {task.tags.slice(0, 3).map((tag) => (
+          {tags.slice(0, 3).map((tag) => (
             <span key={tag} className="tasks-map-sidebar-card-tag">
               #{tag}
             </span>
           ))}
+          {task.context && (
+            <span className="tasks-map-sidebar-card-tag tasks-map-sidebar-card-context">
+              @
+              <TaskContext
+                app={app}
+                context={task.context}
+                sourcePath={task.link}
+              />
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -270,6 +286,7 @@ function SidebarContent({ plugin }: SidebarContentProps) {
   const renderTaskCard = (task: Task) => (
     <TaskCard
       key={task.id}
+      app={plugin.app}
       task={task}
       isOnCanvas={canvasTaskIds.includes(task.id)}
       onDragStart={handleDragStart}

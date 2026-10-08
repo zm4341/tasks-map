@@ -243,6 +243,53 @@ body {
   padding-left: 28px;
 }
 
+/* The context of the task, below its tags, its icon in the column of the
+   status icon like the icon of the project */
+.tasks-map-task-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.tasks-map-task-context-icon {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: center;
+  width: 20px;
+  color: var(--text-faint);
+}
+
+.tasks-map-task-context > :last-child,
+.tasks-map-sidebar-card-context > :last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A note as the context is a link like Obsidian's, as in TaskGenius */
+.tasks-map-context-link {
+  color: var(--link-color);
+  text-decoration-line: var(--link-decoration);
+  cursor: var(--cursor-link);
+}
+
+.tasks-map-context-link:hover {
+  color: var(--link-color-hover);
+  text-decoration-line: var(--link-decoration-hover);
+}
+
+.tasks-map-context-link.is-unresolved {
+  color: var(--link-unresolved-color);
+  opacity: var(--link-unresolved-opacity);
+  text-decoration-style: var(--link-unresolved-decoration-style);
+  text-decoration-color: var(--link-unresolved-decoration-color);
+}
+
 /* Task Details Styles */
 .task-details {
   margin-top: 10px;
@@ -1114,6 +1161,13 @@ body {
   border: 1px solid var(--background-modifier-border);
   padding: 2px 6px;
   border-radius: 8px;
+}
+
+/* The context follows the tags, "@" marks it as "#" marks a tag */
+.tasks-map-sidebar-card-context {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Drop indicator on canvas */
