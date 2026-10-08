@@ -6,17 +6,29 @@ import {
   TasksMapSettings,
   DEFAULT_SETTINGS,
   GraphData,
-  DEFAULT_GRAPH_DATA,
+  CanvasData,
+  CanvasInfo,
   PluginData,
-  DEFAULT_PLUGIN_DATA,
 } from "./types/settings";
+import {
+  createCanvas,
+  getNextCanvasName,
+  parsePluginData,
+} from "./lib/canvases";
 import { TasksMapSettingTab } from "./settings/settings-tab";
 import { Task } from "./types/task";
 import { registerTaskStatusIcons } from "./components/task-status-icon";
 
 export default class TasksMapPlugin extends Plugin {
   settings: TasksMapSettings = DEFAULT_SETTINGS;
-  graphData: GraphData = DEFAULT_GRAPH_DATA;
+  canvases: CanvasData[] = [];
+  activeCanvasId = "";
+
+  // Map views listening for canvases being added, renamed or deleted
+  private canvasListListeners = new Set<() => void>();
+
+  // data.json is written one save at a time, overlapping writes can corrupt it
+  private saving: Promise<void> = Promise.resolve();
   
   // Callbacks for canvas operations (set by TaskMapGraphView)
   private _addTaskToCanvas: ((taskId: string, position: { x: number; y: number }, taskData?: unknown) => void) | null = null;
@@ -155,29 +167,24 @@ export default class TasksMapPlugin extends Plugin {
   }
 
   async loadAllData() {
-    const data = await this.loadData();
-    if (data) {
-      // Handle legacy format (just settings) or new format (settings + graphData)
-      if (data.settings) {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, data.settings);
-        this.graphData = Object.assign({}, DEFAULT_GRAPH_DATA, data.graphData || {});
-      } else {
-        // Legacy format: data is just settings
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
-        this.graphData = DEFAULT_GRAPH_DATA;
-      }
-    } else {
-      this.settings = DEFAULT_SETTINGS;
-      this.graphData = DEFAULT_GRAPH_DATA;
-    }
+    const data = parsePluginData(await this.loadData());
+    this.settings = data.settings;
+    this.canvases = data.canvases;
+    this.activeCanvasId = data.activeCanvasId;
   }
 
   async saveAllData() {
-    const data: PluginData = {
-      settings: this.settings,
-      graphData: this.graphData,
+    // Serialized when written, so every save writes the latest data
+    const save = () => {
+      const data: PluginData = {
+        settings: this.settings,
+        canvases: this.canvases,
+        activeCanvasId: this.activeCanvasId,
+      };
+      return this.saveData(data);
     };
-    await this.saveData(data);
+    this.saving = this.saving.then(save, save);
+    await this.saving;
   }
 
   async loadSettings() {
@@ -188,29 +195,86 @@ export default class TasksMapPlugin extends Plugin {
     await this.saveAllData();
   }
 
-  // Graph data specific methods
-  getGraphData(): GraphData {
-    return this.graphData;
+  // ========== Canvases ==========
+
+  getCanvasList(): CanvasInfo[] {
+    return this.canvases.map(({ id, name }) => ({ id, name }));
   }
 
-  async saveGraphData(data: GraphData) {
-    this.graphData = data;
+  getCanvas(id: string): CanvasData | undefined {
+    return this.canvases.find((canvas) => canvas.id === id);
+  }
+
+  getActiveCanvas(): CanvasData {
+    return this.getCanvas(this.activeCanvasId) ?? this.canvases[0];
+  }
+
+  async setActiveCanvas(id: string) {
+    if (!this.getCanvas(id)) return;
+    this.activeCanvasId = id;
     await this.saveAllData();
   }
 
-  // Clear all graph data (nodes, edges, viewport)
-  async clearGraphData() {
-    this.graphData = {
-      nodes: [],
-      edges: [],
-      viewport: { x: 0, y: 0, zoom: 1 },
+  // Does nothing for deleted canvases, a map view may still show one
+  async saveCanvasGraph(id: string, data: GraphData) {
+    const canvas = this.getCanvas(id);
+    if (!canvas) return;
+    canvas.nodes = data.nodes;
+    canvas.edges = data.edges;
+    canvas.viewport = data.viewport;
+    await this.saveAllData();
+  }
+
+  addCanvas(): CanvasData {
+    const canvas = createCanvas(getNextCanvasName(this.canvases));
+    this.canvases.push(canvas);
+    this.onCanvasListChange();
+    return canvas;
+  }
+
+  renameCanvas(id: string, name: string) {
+    const canvas = this.getCanvas(id);
+    const newName = name.trim();
+    if (!canvas || !newName || newName === canvas.name) return;
+    canvas.name = newName;
+    this.onCanvasListChange();
+  }
+
+  // The last canvas can't be deleted
+  deleteCanvas(id: string) {
+    const index = this.canvases.findIndex((canvas) => canvas.id === id);
+    if (index === -1 || this.canvases.length === 1) return;
+    this.canvases.splice(index, 1);
+    if (this.activeCanvasId === id) {
+      this.activeCanvasId = (this.canvases[index] ?? this.canvases[index - 1]).id;
+    }
+    this.onCanvasListChange();
+  }
+
+  /** Returns a function that removes the listener again */
+  subscribeCanvasList(listener: () => void): () => void {
+    this.canvasListListeners.add(listener);
+    return () => {
+      this.canvasListListeners.delete(listener);
     };
-    await this.saveAllData();
-    
-    // Also clear canvas nodes if canvas is open
+  }
+
+  private onCanvasListChange() {
+    this.canvasListListeners.forEach((listener) => listener());
+    this.saveAllData();
+  }
+
+  // Clear the nodes and edges of the canvas the map shows
+  async clearGraphData() {
+    // An open map clears the canvas it shows itself and saves it
     if (this._clearCanvasNodes) {
       this._clearCanvasNodes();
+      return;
     }
+    const canvas = this.getActiveCanvas();
+    canvas.nodes = [];
+    canvas.edges = [];
+    await this.saveAllData();
   }
 
   async activateViewInMainArea() {
@@ -262,7 +326,7 @@ export default class TasksMapPlugin extends Plugin {
     if (this._getCanvasTaskIds) {
       return this._getCanvasTaskIds();
     }
-    return this.graphData.nodes.map((n) => n.taskId);
+    return this.getActiveCanvas().nodes.map((n) => n.taskId);
   }
 
   // Called by sidebar to register its tasks (for canvas updates)

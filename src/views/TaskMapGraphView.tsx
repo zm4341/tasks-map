@@ -24,6 +24,7 @@ import TaskNode from "src/components/task-node";
 import { NO_TAGS_VALUE } from "src/components/tag-select";
 import HashEdge from "src/components/hash-edge";
 import { DeleteEdgeButton } from "src/components/delete-edge-button";
+import { CanvasTabs } from "src/components/canvas-tabs";
 import { TagsContext } from "src/contexts/context";
 
 import { TaskStatus } from "src/types/task";
@@ -52,6 +53,15 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
   const tasksRef = React.useRef(tasks);
   const vaultRef = React.useRef(vault);
   const reactFlowInstance = useReactFlow();
+
+  // The canvases of the map and the one shown
+  const [canvasList, setCanvasList] = React.useState(() =>
+    plugin.getCanvasList()
+  );
+  const [canvasId, setCanvasId] = React.useState(
+    () => plugin.getActiveCanvas().id
+  );
+  const canvasIdRef = useRef(canvasId);
   
   // Persistence: track if this is initial load
   const isInitialLoadRef = useRef(true);
@@ -118,7 +128,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
       viewport: { x: viewport.x, y: viewport.y, zoom: viewport.zoom },
     };
     console.log("[TasksMap] Saving graph data:", graphData.nodes.length, "nodes,", graphData.edges.length, "edges");
-    plugin.saveGraphData(graphData);
+    plugin.saveCanvasGraph(canvasIdRef.current, graphData);
   }, [plugin, reactFlowInstance]);
 
   // Debounced save function
@@ -129,6 +139,15 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     saveTimeoutRef.current = setTimeout(() => {
       saveGraphDataImmediate();
     }, 200); // Reduced from 500ms to 200ms
+  }, [saveGraphDataImmediate]);
+
+  // Save right away what the debounced save would save later
+  const flushSave = useCallback(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    saveGraphDataImmediate();
   }, [saveGraphDataImmediate]);
 
   // Custom onNodesChange that also saves
@@ -225,18 +244,17 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     return filtered.map((task) => task.id);
   };
 
-  // Load saved graph data
-  const loadSavedData = useCallback(() => {
-    const savedData = plugin.getGraphData();
+  // Load the saved graph of the canvas shown
+  const loadSavedData = useCallback((silent = false) => {
+    const savedData = plugin.getCanvas(canvasIdRef.current);
+    if (!savedData) return;
     
     console.log("[TasksMap] Loading saved data:", savedData.nodes.length, "nodes,", savedData.edges.length, "edges");
     
-    if (savedData.nodes.length === 0) {
-      // No saved data - this is normal for first use
-      return;
-    }
-    
     const isVertical = settings.layoutDirection === "Vertical";
+
+    // Tasks scanned since the canvas was saved are more recent
+    const scannedTasks = new Map(tasksRef.current.map((t) => [t.id, t]));
     
     // Restore nodes from saved data
     const restoredNodes: TaskNodeType[] = savedData.nodes
@@ -245,7 +263,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
         id: savedNode.id,
         position: savedNode.position,
         data: {
-          task: savedNode.taskData as Task,
+          task: scannedTasks.get(savedNode.id) ?? (savedNode.taskData as Task),
           layoutDirection: settings.layoutDirection,
           showPriorities: settings.showPriorities,
           showTags: settings.showTags,
@@ -277,17 +295,16 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
       },
     }));
     
+    // Saves read the refs, which must not hold the previous canvas meanwhile
+    nodesRef.current = restoredNodes;
+    edgesRef.current = restoredEdges;
     setNodes(restoredNodes);
     setEdges(restoredEdges);
+    reactFlowInstance.setViewport(savedData.viewport);
     
-    // Restore viewport
-    if (savedData.viewport) {
-      setTimeout(() => {
-        reactFlowInstance.setViewport(savedData.viewport, { duration: 400 });
-      }, 100);
+    if (!silent && restoredNodes.length > 0) {
+      new Notice(`Loaded ${restoredNodes.length} nodes`);
     }
-    
-    new Notice(`Loaded ${restoredNodes.length} nodes`);
   }, [plugin, settings, reactFlowInstance, setNodes, setEdges]);
 
   // Load initial data from saved graph
@@ -456,12 +473,22 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     return nodesRef.current.map((n) => n.id);
   }, []);
 
-  // Clear all nodes from canvas
+  // Clear all nodes from the canvas shown and save it
   const clearCanvasNodes = useCallback(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    nodesRef.current = [];
+    edgesRef.current = [];
     setNodes([]);
     setEdges([]);
+    plugin.saveCanvasGraph(canvasIdRef.current, {
+      nodes: [],
+      edges: [],
+      viewport: reactFlowInstance.getViewport(),
+    });
     console.log("[TasksMap Canvas] Canvas cleared");
-  }, [setNodes, setEdges]);
+  }, [plugin, reactFlowInstance, setNodes, setEdges]);
 
   // Register canvas operations with plugin for sidebar access
   useEffect(() => {
@@ -717,6 +744,59 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     reactFlowInstance.fitView({ padding: 0.2, maxZoom: 1, duration: 300 });
   }, [reactFlowInstance]);
 
+  // Show another canvas, after saving the one shown
+  const switchCanvas = (id: string) => {
+    if (id === canvasIdRef.current) return;
+    flushSave();
+    canvasIdRef.current = id;
+    setCanvasId(id);
+    setSelectedEdge(null);
+    setContextMenu(null);
+    plugin.setActiveCanvas(id);
+    loadSavedData(true);
+  };
+
+  const addCanvas = () => {
+    switchCanvas(plugin.addCanvas().id);
+  };
+
+  const deleteCanvas = (id: string) => {
+    const canvas = plugin.getCanvas(id);
+    if (!canvas || canvasList.length === 1) return;
+
+    const nodeCount =
+      id === canvasIdRef.current ? nodesRef.current.length : canvas.nodes.length;
+    const confirmed =
+      nodeCount === 0 ||
+      confirm(
+        localize({
+          en: `Delete the canvas "${canvas.name}" with its ${nodeCount} nodes? The tasks themselves stay.`,
+          zh: `确定要删除画布「${canvas.name}」吗？画布上的 ${nodeCount} 个节点和连线会一起删除，任务本身不受影响。`,
+        })
+      );
+    if (!confirmed) return;
+
+    if (id === canvasIdRef.current) {
+      const index = canvasList.findIndex((c) => c.id === id);
+      switchCanvas((canvasList[index + 1] ?? canvasList[index - 1]).id);
+    }
+    plugin.deleteCanvas(id);
+  };
+
+  // Canvases are added, renamed and deleted in any open map view
+  useEffect(
+    () =>
+      plugin.subscribeCanvasList(() => setCanvasList(plugin.getCanvasList())),
+    [plugin]
+  );
+
+  // Another map view deleted the canvas this one shows
+  useEffect(() => {
+    if (!canvasList.some((canvas) => canvas.id === canvasIdRef.current)) {
+      switchCanvas(plugin.getActiveCanvas().id);
+    }
+  }, [canvasList]);
+
   const tagsContextValue = useMemo(
     () => ({
       allTags,
@@ -750,7 +830,6 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
           edgeTypes={edgeTypes}
           proOptions={{ hideAttribution: true }}
           minZoom={0.1}
-          fitView
           connectionMode={ConnectionMode.Loose}
           isValidConnection={isValidConnection}
           onConnect={onConnect}
@@ -770,6 +849,14 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
             allStatuses={ALL_TASK_STATUSES}
             selectedStatuses={selectedStatuses}
             setSelectedStatuses={setSelectedStatuses}
+          />
+          <CanvasTabs
+            canvases={canvasList}
+            activeCanvasId={canvasId}
+            onSelect={switchCanvas}
+            onAdd={addCanvas}
+            onRename={(id, name) => plugin.renameCanvas(id, name)}
+            onDelete={deleteCanvas}
           />
           <Panel position="bottom-right" className="tasks-map-canvas-controls">
             <button

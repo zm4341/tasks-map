@@ -577,6 +577,70 @@ body {
   border-radius: 7px;
 }
 
+/* Canvas tabs in the top left corner */
+.tasks-map-canvas-tabs {
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 30px);
+}
+
+.tasks-map-canvas-tab-list {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tasks-map-canvas-tabs .tasks-map-canvas-tab {
+  flex: none;
+  min-width: 30px;
+  max-width: 160px;
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tasks-map-canvas-tabs .tasks-map-canvas-tab:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.tasks-map-canvas-tabs .tasks-map-canvas-tab.is-active {
+  background-color: color-mix(
+    in srgb,
+    var(--interactive-accent) 20%,
+    transparent
+  );
+  color: var(--text-normal);
+}
+
+.tasks-map-canvas-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tasks-map-canvas-tabs .tasks-map-canvas-tab-input {
+  field-sizing: content;
+  min-width: 48px;
+  max-width: 160px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--interactive-accent);
+  border-radius: 7px;
+  background-color: var(--background-primary);
+  box-shadow: none;
+  font-size: var(--font-ui-small);
+}
+
 /* Task Map Graph View Styles */
 .tasks-map-graph-container {
   --tasks-map-surface: var(--background-primary);

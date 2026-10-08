@@ -73,19 +73,18 @@ export interface GraphData {
   viewport: SavedViewport;
 }
 
-export const DEFAULT_GRAPH_DATA: GraphData = {
-  nodes: [],
-  edges: [],
-  viewport: { x: 0, y: 0, zoom: 1 },
-};
-
-// Combined plugin data (settings + graph data)
-export interface PluginData {
-  settings: TasksMapSettings;
-  graphData: GraphData;
+// A canvas of the map. The map has several, the user switches between them.
+export interface CanvasData extends GraphData {
+  id: string;
+  name: string;
 }
 
-export const DEFAULT_PLUGIN_DATA: PluginData = {
-  settings: DEFAULT_SETTINGS,
-  graphData: DEFAULT_GRAPH_DATA,
-};
+export type CanvasInfo = Pick<CanvasData, "id" | "name">;
+
+// Combined plugin data (settings + canvases)
+export interface PluginData {
+  settings: TasksMapSettings;
+  canvases: CanvasData[];
+  // The canvas the map shows when it opens
+  activeCanvasId: string;
+}

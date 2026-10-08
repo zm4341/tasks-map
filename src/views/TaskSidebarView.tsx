@@ -218,9 +218,10 @@ function SidebarContent({ plugin }: SidebarContentProps) {
     }
   }, [plugin]);
 
-  // Clear canvas data
+  // Clear the data of the canvas the map shows
   const handleClearCanvas = useCallback(async () => {
-    if (confirm("确定要清空画布数据吗？这将删除所有节点和连线。")) {
+    const canvasName = plugin.getActiveCanvas().name;
+    if (confirm(`确定要清空画布「${canvasName}」吗？这将删除其中所有节点和连线。`)) {
       await plugin.clearGraphData();
       setCanvasTaskIds([]);
       new Notice("Canvas data cleared");
