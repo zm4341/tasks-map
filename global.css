@@ -577,6 +577,23 @@ body {
   border-radius: 7px;
 }
 
+/* Alignment guides of a dragged node, above the nodes */
+.tasks-map-alignment-guides {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tasks-map-alignment-guides line {
+  stroke: var(--interactive-accent);
+  stroke-width: 1;
+}
+
 /* Canvas tabs in the top left corner */
 .tasks-map-canvas-tabs {
   align-items: center;

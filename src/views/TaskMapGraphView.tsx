@@ -5,6 +5,8 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   useReactFlow,
+  useStoreApi,
+  Node,
   NodeChange,
   Position,
   ConnectionMode,
@@ -25,11 +27,27 @@ import { NO_TAGS_VALUE } from "src/components/tag-select";
 import HashEdge from "src/components/hash-edge";
 import { DeleteEdgeButton } from "src/components/delete-edge-button";
 import { CanvasTabs } from "src/components/canvas-tabs";
+import { AlignmentGuides } from "src/components/alignment-guides";
+import {
+  alignBox,
+  AlignmentGuide,
+  Box,
+  boxesOverlap,
+} from "src/lib/alignment";
 import { TagsContext } from "src/contexts/context";
 
 import { TaskStatus } from "src/types/task";
 import { TasksMapSettings, GraphData } from "src/types/settings";
 import TasksMapPlugin from "src/main";
+
+// How close, in screen pixels, a dragged node snaps into line
+const SNAP_DISTANCE = 8;
+
+// The box of a node, once React Flow has measured it
+function getNodeBox(node: Node): Box | null {
+  if (!node.width || !node.height) return null;
+  return { ...node.position, width: node.width, height: node.height };
+}
 
 interface TaskMapGraphViewProps {
   settings: TasksMapSettings;
@@ -53,6 +71,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
   const tasksRef = React.useRef(tasks);
   const vaultRef = React.useRef(vault);
   const reactFlowInstance = useReactFlow();
+  const store = useStoreApi();
 
   // The canvases of the map and the one shown
   const [canvasList, setCanvasList] = React.useState(() =>
@@ -150,10 +169,64 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     saveGraphDataImmediate();
   }, [saveGraphDataImmediate]);
 
+  // Where the node being dragged lines up with other nodes
+  const [alignmentGuides, setAlignmentGuides] = React.useState<
+    AlignmentGuide[]
+  >([]);
+
+  // Snap a dragged node into line with the nodes on screen
+  const alignDraggedNode = useCallback(
+    (changes: NodeChange[]): NodeChange[] => {
+      const change = changes.length === 1 ? changes[0] : undefined;
+      if (
+        change?.type !== "position" ||
+        !change.dragging ||
+        !change.position
+      ) {
+        setAlignmentGuides((guides) => (guides.length > 0 ? [] : guides));
+        return changes;
+      }
+
+      const node = nodesRef.current.find((n) => n.id === change.id);
+      const box = node && getNodeBox({ ...node, position: change.position });
+      if (!box) return changes;
+
+      // Lining up with nodes out of sight would look random
+      const { transform, width, height } = store.getState();
+      const [x, y, zoom] = transform;
+      const screen = {
+        x: -x / zoom,
+        y: -y / zoom,
+        width: width / zoom,
+        height: height / zoom,
+      };
+      const others = nodesRef.current
+        .filter((n) => n.id !== change.id && !n.hidden)
+        .map(getNodeBox)
+        .filter((b): b is Box => b !== null && boxesOverlap(b, screen));
+
+      const alignment = alignBox(box, others, SNAP_DISTANCE / zoom);
+      setAlignmentGuides(alignment.guides);
+      const offsetX = alignment.x - box.x;
+      const offsetY = alignment.y - box.y;
+      return [
+        {
+          ...change,
+          position: { x: alignment.x, y: alignment.y },
+          positionAbsolute: change.positionAbsolute && {
+            x: change.positionAbsolute.x + offsetX,
+            y: change.positionAbsolute.y + offsetY,
+          },
+        },
+      ];
+    },
+    [store]
+  );
+
   // Custom onNodesChange that also saves
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      onNodesChange(changes);
+      onNodesChange(alignDraggedNode(changes));
       // Save after position changes
       const hasPositionChange = changes.some(
         (c) => c.type === "position" && c.dragging === false
@@ -162,7 +235,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
         saveGraphData();
       }
     },
-    [onNodesChange, saveGraphData]
+    [onNodesChange, alignDraggedNode, saveGraphData]
   );
 
   useEffect(() => {
@@ -850,6 +923,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
             selectedStatuses={selectedStatuses}
             setSelectedStatuses={setSelectedStatuses}
           />
+          <AlignmentGuides guides={alignmentGuides} />
           <CanvasTabs
             canvases={canvasList}
             activeCanvasId={canvasId}

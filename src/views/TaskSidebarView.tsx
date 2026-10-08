@@ -169,9 +169,9 @@ function SidebarContent({ plugin }: SidebarContentProps) {
     };
   }, [plugin, scanTasks]);
 
-  // Filter tasks
+  // Filter tasks. Archived tasks are hidden, as TaskGenius hides them.
   const filteredTasks = useMemo(() => {
-    let filtered = tasks;
+    let filtered = tasks.filter((t) => t.status !== "archived");
     
     if (selectedProject !== "all") {
       filtered = filtered.filter((t) => (t as Task & { project?: string }).project === selectedProject);
