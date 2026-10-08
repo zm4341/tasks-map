@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, TFolder, Notice } from "obsidian";
+import { ItemView, WorkspaceLeaf, TFile, TFolder } from "obsidian";
 import { createRoot, Root } from "react-dom/client";
 import TasksMapPlugin from "../main";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -258,16 +258,6 @@ function SidebarContent({ plugin }: SidebarContentProps) {
     }
   }, [plugin]);
 
-  // Clear the data of the canvas the map shows
-  const handleClearCanvas = useCallback(async () => {
-    const canvasName = plugin.getActiveCanvas().name;
-    if (confirm(`确定要清空画布「${canvasName}」吗？这将删除其中所有节点和连线。`)) {
-      await plugin.clearGraphData();
-      setCanvasTaskIds([]);
-      new Notice("Canvas data cleared");
-    }
-  }, [plugin]);
-
   const renderTaskCard = (task: Task) => (
     <TaskCard
       key={task.id}
@@ -290,13 +280,6 @@ function SidebarContent({ plugin }: SidebarContentProps) {
             title="Refresh tasks"
           >
             {isLoading ? "..." : "↻"}
-          </button>
-          <button
-            className="tasks-map-sidebar-clear-button"
-            onClick={handleClearCanvas}
-            title="Clear canvas data"
-          >
-            🗑
           </button>
         </div>
       </div>

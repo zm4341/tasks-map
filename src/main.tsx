@@ -18,14 +18,19 @@ import { TasksMapSettingTab } from "./settings/settings-tab";
 import { Task } from "./types/task";
 import { registerTaskStatusIcons } from "./components/task-status-icon";
 
+// What map views hear about changes to the canvases
+export type CanvasEvent =
+  | { type: "list" } // added, renamed or deleted
+  | { type: "clear"; canvasId: string };
+
 export default class TasksMapPlugin extends Plugin {
   settings: TasksMapSettings = DEFAULT_SETTINGS;
   canvases: CanvasData[] = [];
   activeCanvasId = "";
   sidebarState: SidebarState = DEFAULT_SIDEBAR_STATE;
 
-  // Map views listening for canvases being added, renamed or deleted
-  private canvasListListeners = new Set<() => void>();
+  // Open map views, listening for changes to the canvases
+  private canvasListeners = new Set<(event: CanvasEvent) => void>(); // eslint-disable-line no-unused-vars
 
   // data.json is written one save at a time, overlapping writes can corrupt it
   private saving: Promise<void> = Promise.resolve();
@@ -33,7 +38,6 @@ export default class TasksMapPlugin extends Plugin {
   // Callbacks for canvas operations (set by TaskMapGraphView)
   private _addTaskToCanvas: ((taskId: string, position: { x: number; y: number }, taskData?: unknown) => void) | null = null;
   private _getCanvasTaskIds: (() => string[]) | null = null;
-  private _clearCanvasNodes: (() => void) | null = null;
   
   // Sidebar tasks storage (shared with canvas for updates)
   private _sidebarTasks: Task[] = [];
@@ -258,30 +262,31 @@ export default class TasksMapPlugin extends Plugin {
     this.onCanvasListChange();
   }
 
-  /** Returns a function that removes the listener again */
-  subscribeCanvasList(listener: () => void): () => void {
-    this.canvasListListeners.add(listener);
-    return () => {
-      this.canvasListListeners.delete(listener);
-    };
-  }
-
-  private onCanvasListChange() {
-    this.canvasListListeners.forEach((listener) => listener());
+  // Removes the nodes and edges of a canvas, the tasks stay in their notes
+  clearCanvas(id: string) {
+    const canvas = this.getCanvas(id);
+    if (!canvas) return;
+    canvas.nodes = [];
+    canvas.edges = [];
+    this.emitCanvasEvent({ type: "clear", canvasId: id });
     this.saveAllData();
   }
 
-  // Clear the nodes and edges of the canvas the map shows
-  async clearGraphData() {
-    // An open map clears the canvas it shows itself and saves it
-    if (this._clearCanvasNodes) {
-      this._clearCanvasNodes();
-      return;
-    }
-    const canvas = this.getActiveCanvas();
-    canvas.nodes = [];
-    canvas.edges = [];
-    await this.saveAllData();
+  /** Returns a function that removes the listener again */
+  subscribeCanvases(listener: (event: CanvasEvent) => void): () => void { // eslint-disable-line no-unused-vars
+    this.canvasListeners.add(listener);
+    return () => {
+      this.canvasListeners.delete(listener);
+    };
+  }
+
+  private emitCanvasEvent(event: CanvasEvent) {
+    this.canvasListeners.forEach((listener) => listener(event));
+  }
+
+  private onCanvasListChange() {
+    this.emitCanvasEvent({ type: "list" });
+    this.saveAllData();
   }
 
   async activateViewInMainArea() {
@@ -307,18 +312,15 @@ export default class TasksMapPlugin extends Plugin {
   // Canvas operation registration (called by TaskMapGraphView)
   registerCanvasOperations(
     addTask: (taskId: string, position: { x: number; y: number }, taskData?: unknown) => void,
-    getTaskIds: () => string[],
-    clearNodes?: () => void
+    getTaskIds: () => string[]
   ) {
     this._addTaskToCanvas = addTask;
     this._getCanvasTaskIds = getTaskIds;
-    this._clearCanvasNodes = clearNodes || null;
   }
 
   unregisterCanvasOperations() {
     this._addTaskToCanvas = null;
     this._getCanvasTaskIds = null;
-    this._clearCanvasNodes = null;
   }
 
   // Called by sidebar to add task to canvas

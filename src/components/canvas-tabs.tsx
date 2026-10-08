@@ -11,7 +11,9 @@ interface CanvasTabsProps {
   onSelect: (id: string) => void; // eslint-disable-line no-unused-vars
   onAdd: () => void;
   onRename: (id: string, name: string) => void; // eslint-disable-line no-unused-vars
+  onClear: (id: string) => void; // eslint-disable-line no-unused-vars
   onDelete: (id: string) => void; // eslint-disable-line no-unused-vars
+  getNodeCount: (id: string) => number; // eslint-disable-line no-unused-vars
 }
 
 /** Switches between the canvases of the map, in its top left corner */
@@ -21,7 +23,9 @@ export function CanvasTabs({
   onSelect,
   onAdd,
   onRename,
+  onClear,
   onDelete,
+  getNodeCount,
 }: CanvasTabsProps) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
 
@@ -33,6 +37,14 @@ export function CanvasTabs({
         .setTitle(localize({ en: "Rename", zh: "重命名" }))
         .setIcon("pencil")
         .onClick(() => setRenamingId(canvas.id))
+    );
+    // Removes the nodes and edges, the canvas stays
+    menu.addItem((item) =>
+      item
+        .setTitle(localize({ en: "Clear canvas", zh: "清空画布" }))
+        .setIcon("eraser")
+        .setDisabled(getNodeCount(canvas.id) === 0)
+        .onClick(() => onClear(canvas.id))
     );
     menu.addItem((item) =>
       item

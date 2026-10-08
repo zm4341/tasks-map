@@ -546,26 +546,9 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     return nodesRef.current.map((n) => n.id);
   }, []);
 
-  // Clear all nodes from the canvas shown and save it
-  const clearCanvasNodes = useCallback(() => {
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-    }
-    nodesRef.current = [];
-    edgesRef.current = [];
-    setNodes([]);
-    setEdges([]);
-    plugin.saveCanvasGraph(canvasIdRef.current, {
-      nodes: [],
-      edges: [],
-      viewport: reactFlowInstance.getViewport(),
-    });
-    console.log("[TasksMap Canvas] Canvas cleared");
-  }, [plugin, reactFlowInstance, setNodes, setEdges]);
-
   // Register canvas operations with plugin for sidebar access
   useEffect(() => {
-    plugin.registerCanvasOperations(addTaskToCanvas, getCanvasTaskIds, clearCanvasNodes);
+    plugin.registerCanvasOperations(addTaskToCanvas, getCanvasTaskIds);
     
     // Register auto-refresh callback
     plugin.registerCanvasRefresh(() => {
@@ -577,7 +560,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
       plugin.unregisterCanvasOperations();
       plugin.unregisterCanvasRefresh();
     };
-  }, [plugin, addTaskToCanvas, getCanvasTaskIds, clearCanvasNodes]);
+  }, [plugin, addTaskToCanvas, getCanvasTaskIds]);
 
   // Drag and drop from sidebar
   const [isDragOver, setIsDragOver] = React.useState(false);
@@ -833,12 +816,31 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     switchCanvas(plugin.addCanvas().id);
   };
 
+  // The canvas shown may have nodes that are not saved yet
+  const getCanvasNodeCount = (id: string) =>
+    id === canvasIdRef.current
+      ? nodesRef.current.length
+      : (plugin.getCanvas(id)?.nodes.length ?? 0);
+
+  const clearCanvas = (id: string) => {
+    const canvas = plugin.getCanvas(id);
+    const nodeCount = getCanvasNodeCount(id);
+    if (!canvas || nodeCount === 0) return;
+
+    const confirmed = confirm(
+      localize({
+        en: `Clear the canvas "${canvas.name}"? Its ${nodeCount} nodes and their edges are removed, the tasks themselves stay.`,
+        zh: `确定要清空画布「${canvas.name}」吗？画布上的 ${nodeCount} 个节点和连线都会移除，任务本身不受影响。`,
+      })
+    );
+    if (confirmed) plugin.clearCanvas(id);
+  };
+
   const deleteCanvas = (id: string) => {
     const canvas = plugin.getCanvas(id);
     if (!canvas || canvasList.length === 1) return;
 
-    const nodeCount =
-      id === canvasIdRef.current ? nodesRef.current.length : canvas.nodes.length;
+    const nodeCount = getCanvasNodeCount(id);
     const confirmed =
       nodeCount === 0 ||
       confirm(
@@ -856,10 +858,25 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     plugin.deleteCanvas(id);
   };
 
-  // Canvases are added, renamed and deleted in any open map view
+  // Canvases are added, renamed, deleted and cleared in any open map view
   useEffect(
     () =>
-      plugin.subscribeCanvasList(() => setCanvasList(plugin.getCanvasList())),
+      plugin.subscribeCanvases((event) => {
+        if (event.type === "list") {
+          setCanvasList(plugin.getCanvasList());
+          return;
+        }
+        if (event.canvasId !== canvasIdRef.current) return;
+        // The canvas shown was cleared, a pending save must not bring its
+        // nodes back
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+        nodesRef.current = [];
+        edgesRef.current = [];
+        setNodes([]);
+        setEdges([]);
+        setSelectedEdge(null);
+        setContextMenu(null);
+      }),
     [plugin]
   );
 
@@ -930,7 +947,9 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
             onSelect={switchCanvas}
             onAdd={addCanvas}
             onRename={(id, name) => plugin.renameCanvas(id, name)}
+            onClear={clearCanvas}
             onDelete={deleteCanvas}
+            getNodeCount={getCanvasNodeCount}
           />
           <Panel position="bottom-right" className="tasks-map-canvas-controls">
             <button
