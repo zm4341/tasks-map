@@ -9,12 +9,11 @@ import {
   CanvasData,
   CanvasInfo,
   PluginData,
+  SidebarState,
+  DEFAULT_SIDEBAR_STATE,
 } from "./types/settings";
-import {
-  createCanvas,
-  getNextCanvasName,
-  parsePluginData,
-} from "./lib/canvases";
+import { createCanvas, getNextCanvasName } from "./lib/canvases";
+import { parsePluginData } from "./lib/plugin-data";
 import { TasksMapSettingTab } from "./settings/settings-tab";
 import { Task } from "./types/task";
 import { registerTaskStatusIcons } from "./components/task-status-icon";
@@ -23,6 +22,7 @@ export default class TasksMapPlugin extends Plugin {
   settings: TasksMapSettings = DEFAULT_SETTINGS;
   canvases: CanvasData[] = [];
   activeCanvasId = "";
+  sidebarState: SidebarState = DEFAULT_SIDEBAR_STATE;
 
   // Map views listening for canvases being added, renamed or deleted
   private canvasListListeners = new Set<() => void>();
@@ -171,6 +171,7 @@ export default class TasksMapPlugin extends Plugin {
     this.settings = data.settings;
     this.canvases = data.canvases;
     this.activeCanvasId = data.activeCanvasId;
+    this.sidebarState = data.sidebar;
   }
 
   async saveAllData() {
@@ -180,6 +181,7 @@ export default class TasksMapPlugin extends Plugin {
         settings: this.settings,
         canvases: this.canvases,
         activeCanvasId: this.activeCanvasId,
+        sidebar: this.sidebarState,
       };
       return this.saveData(data);
     };
@@ -192,6 +194,11 @@ export default class TasksMapPlugin extends Plugin {
   }
 
   async saveSettings() {
+    await this.saveAllData();
+  }
+
+  async saveSidebarState(state: Partial<SidebarState>) {
+    this.sidebarState = { ...this.sidebarState, ...state };
     await this.saveAllData();
   }
 

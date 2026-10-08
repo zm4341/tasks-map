@@ -81,10 +81,23 @@ export interface CanvasData extends GraphData {
 
 export type CanvasInfo = Pick<CanvasData, "id" | "name">;
 
+// How the sidebar shows tasks, kept between sessions
+export interface SidebarState {
+  hideOnCanvas: boolean;
+  // Projects whose groups are collapsed while all projects are shown
+  collapsedProjects: string[];
+}
+
+export const DEFAULT_SIDEBAR_STATE: SidebarState = {
+  hideOnCanvas: false,
+  collapsedProjects: [],
+};
+
 // Combined plugin data (settings + canvases)
 export interface PluginData {
   settings: TasksMapSettings;
   canvases: CanvasData[];
   // The canvas the map shows when it opens
   activeCanvasId: string;
+  sidebar: SidebarState;
 }

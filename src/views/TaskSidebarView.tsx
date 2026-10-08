@@ -6,6 +6,9 @@ import { Task } from "../types/task";
 import { TaskFactory } from "../lib/task-factory";
 import { getStatusLabel, getTaskStatusConfig } from "../lib/task-status";
 import { TaskStatusIcon } from "../components/task-status-icon";
+import { ChevronRight } from "lucide-react";
+import { localize } from "../lib/i18n";
+import { groupByProject, NO_PROJECT } from "../lib/project-groups";
 
 export const SIDEBAR_VIEW_TYPE = "tasks-map-sidebar";
 
@@ -64,8 +67,17 @@ function SidebarContent({ plugin }: SidebarContentProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("all");
-  const [hideOnCanvas, setHideOnCanvas] = useState(false);
-  const [canvasTaskIds, setCanvasTaskIds] = useState<string[]>([]);
+  // Kept in data.json for the next time the sidebar opens
+  const [hideOnCanvas, setHideOnCanvas] = useState(
+    plugin.sidebarState.hideOnCanvas
+  );
+  const [collapsedProjects, setCollapsedProjects] = useState(
+    () => new Set(plugin.sidebarState.collapsedProjects)
+  );
+  // Read right away, so hidden tasks don't show until the first refresh
+  const [canvasTaskIds, setCanvasTaskIds] = useState<string[]>(() =>
+    plugin.getCanvasTaskIds()
+  );
   const [isLoading, setIsLoading] = useState(false);
   
   // Track if component is mounted
@@ -93,8 +105,10 @@ function SidebarContent({ plugin }: SidebarContentProps) {
           const lines = content.split("\n");
           
           // Get project from frontmatter
-          const project = cache?.frontmatter?.Project || cache?.frontmatter?.project || "none";
-          if (project !== "none") {
+          const project = String(
+            cache?.frontmatter?.Project || cache?.frontmatter?.project || NO_PROJECT
+          );
+          if (project !== NO_PROJECT) {
             projectSet.add(project);
           }
 
@@ -184,6 +198,32 @@ function SidebarContent({ plugin }: SidebarContentProps) {
     return filtered;
   }, [tasks, selectedProject, hideOnCanvas, canvasTaskIds]);
 
+  // With all projects shown, each project gets a group
+  const projectGroups = useMemo(
+    () =>
+      selectedProject === "all"
+        ? groupByProject(
+            filteredTasks,
+            (t) => (t as Task & { project?: string }).project ?? NO_PROJECT
+          )
+        : null,
+    [filteredTasks, selectedProject]
+  );
+
+  const changeHideOnCanvas = (hide: boolean) => {
+    setHideOnCanvas(hide);
+    plugin.saveSidebarState({ hideOnCanvas: hide });
+  };
+
+  const toggleProject = (project: string) => {
+    // The plugin holds the latest state, even before this re-renders
+    const collapsed = new Set(plugin.sidebarState.collapsedProjects);
+    if (collapsed.has(project)) collapsed.delete(project);
+    else collapsed.add(project);
+    setCollapsedProjects(collapsed);
+    plugin.saveSidebarState({ collapsedProjects: Array.from(collapsed) });
+  };
+
   const handleDragStart = (e: React.DragEvent, task: Task) => {
     e.dataTransfer.setData("application/tasks-map-task", JSON.stringify({
       task: task,
@@ -228,6 +268,16 @@ function SidebarContent({ plugin }: SidebarContentProps) {
     }
   }, [plugin]);
 
+  const renderTaskCard = (task: Task) => (
+    <TaskCard
+      key={task.id}
+      task={task}
+      isOnCanvas={canvasTaskIds.includes(task.id)}
+      onDragStart={handleDragStart}
+      onOpenFile={handleOpenFile}
+    />
+  );
+
   return (
     <div className="tasks-map-sidebar">
       <div className="tasks-map-sidebar-header">
@@ -268,7 +318,7 @@ function SidebarContent({ plugin }: SidebarContentProps) {
           <input
             type="checkbox"
             checked={hideOnCanvas}
-            onChange={(e) => setHideOnCanvas(e.target.checked)}
+            onChange={(e) => changeHideOnCanvas(e.target.checked)}
           />
           <span>Hide on canvas</span>
         </label>
@@ -277,16 +327,35 @@ function SidebarContent({ plugin }: SidebarContentProps) {
       <div className="tasks-map-sidebar-list">
         {filteredTasks.length === 0 ? (
           <div className="tasks-map-sidebar-empty">No tasks found</div>
+        ) : projectGroups ? (
+          projectGroups.map(({ project, tasks: groupTasks }) => {
+            const collapsed = collapsedProjects.has(project);
+            return (
+              <div
+                key={project}
+                className={`tasks-map-sidebar-group ${collapsed ? "is-collapsed" : ""}`}
+              >
+                <button
+                  className="tasks-map-sidebar-group-header"
+                  onClick={() => toggleProject(project)}
+                  aria-expanded={!collapsed}
+                >
+                  <ChevronRight size={14} className="tasks-map-sidebar-group-icon" />
+                  <span className="tasks-map-sidebar-group-name">
+                    {project === NO_PROJECT
+                      ? localize({ en: "No project", zh: "无项目" })
+                      : project}
+                  </span>
+                  <span className="tasks-map-sidebar-group-count">
+                    {groupTasks.length}
+                  </span>
+                </button>
+                {!collapsed && groupTasks.map(renderTaskCard)}
+              </div>
+            );
+          })
         ) : (
-          filteredTasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              isOnCanvas={canvasTaskIds.includes(task.id)}
-              onDragStart={handleDragStart}
-              onOpenFile={handleOpenFile}
-            />
-          ))
+          filteredTasks.map(renderTaskCard)
         )}
       </div>
     </div>
