@@ -63,9 +63,12 @@ interface SidebarContentProps {
   plugin: TasksMapPlugin;
 }
 
+// The project of a task comes from the frontmatter of its note
+const getProject = (task: Task) =>
+  (task as Task & { project?: string }).project ?? NO_PROJECT;
+
 function SidebarContent({ plugin }: SidebarContentProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [projects, setProjects] = useState<string[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("all");
   // Kept in data.json for the next time the sidebar opens
   const [hideOnCanvas, setHideOnCanvas] = useState(
@@ -88,7 +91,6 @@ function SidebarContent({ plugin }: SidebarContentProps) {
     if (!tasksFolder || !(tasksFolder instanceof TFolder)) return;
 
     const allTasks: Task[] = [];
-    const projectSet = new Set<string>();
     const factory = new TaskFactory(getTaskStatusConfig(plugin.app));
 
     const scanFolder = async (folder: TFolder) => {
@@ -102,9 +104,6 @@ function SidebarContent({ plugin }: SidebarContentProps) {
           const project = String(
             cache?.frontmatter?.Project || cache?.frontmatter?.project || NO_PROJECT
           );
-          if (project !== NO_PROJECT) {
-            projectSet.add(project);
-          }
 
           // Parse dataview tasks from content
           lines.forEach((line, index) => {
@@ -141,7 +140,6 @@ function SidebarContent({ plugin }: SidebarContentProps) {
     // Only update state if component is still mounted
     if (isMountedRef.current) {
       setTasks(allTasks);
-      setProjects(["all", ...Array.from(projectSet).sort()]);
     }
     
     // Register tasks with plugin so canvas can use them for updates
@@ -176,29 +174,47 @@ function SidebarContent({ plugin }: SidebarContentProps) {
     };
   }, [plugin, scanTasks]);
 
-  // Filter tasks. Archived tasks are hidden, as TaskGenius hides them.
+  // Archived tasks are hidden, as TaskGenius hides them
+  const visibleTasks = useMemo(
+    () => tasks.filter((t) => t.status !== "archived"),
+    [tasks]
+  );
+
+  // Like in TaskGenius, a project shows while it has tasks that show
+  const projects = useMemo(
+    () => [
+      "all",
+      ...Array.from(new Set(visibleTasks.map(getProject)))
+        .filter((project) => project !== NO_PROJECT)
+        .sort(),
+    ],
+    [visibleTasks]
+  );
+
+  // The project picked goes away once its last task is archived. Set while
+  // rendering, so React renders again right away, before showing an empty list.
+  if (!projects.includes(selectedProject)) setSelectedProject("all");
+
+  // Filter tasks
   const filteredTasks = useMemo(() => {
-    let filtered = tasks.filter((t) => t.status !== "archived");
-    
+    let filtered = visibleTasks;
+
     if (selectedProject !== "all") {
-      filtered = filtered.filter((t) => (t as Task & { project?: string }).project === selectedProject);
+      filtered = filtered.filter((t) => getProject(t) === selectedProject);
     }
-    
+
     if (hideOnCanvas) {
       filtered = filtered.filter((t) => !canvasTaskIds.includes(t.id));
     }
-    
+
     return filtered;
-  }, [tasks, selectedProject, hideOnCanvas, canvasTaskIds]);
+  }, [visibleTasks, selectedProject, hideOnCanvas, canvasTaskIds]);
 
   // With all projects shown, each project gets a group
   const projectGroups = useMemo(
     () =>
       selectedProject === "all"
-        ? groupByProject(
-            filteredTasks,
-            (t) => (t as Task & { project?: string }).project ?? NO_PROJECT
-          )
+        ? groupByProject(filteredTasks, getProject)
         : null,
     [filteredTasks, selectedProject]
   );
