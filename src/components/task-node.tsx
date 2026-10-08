@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
-import { Plus } from "lucide-react";
+import { Tag as TagIcon } from "lucide-react";
 import { useApp } from "src/hooks/hooks";
 import { Task } from "src/types/task";
 import { TaskDetails } from "./task-details";
@@ -24,6 +24,15 @@ import { TagsContext } from "../contexts/context";
 export const NODEWIDTH = 250;
 export const NODEHEIGHT = 120;
 
+// Edges can start and end on any side. The canvas uses the loose connection
+// mode, in which source handles connect to each other.
+const HANDLE_POSITIONS = [
+  Position.Top,
+  Position.Right,
+  Position.Bottom,
+  Position.Left,
+];
+
 interface TaskNodeData {
   task: Task;
   layoutDirection?: "Horizontal" | "Vertical";
@@ -38,7 +47,6 @@ interface TaskNodeData {
 export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
   const {
     task,
-    layoutDirection = "Horizontal",
     showPriorities = true,
     showTags = true,
     debugVisualization = false,
@@ -70,9 +78,8 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
     setTags(task.tags || []);
   }, [task.tags]);
 
-  const isVertical = layoutDirection === "Vertical";
-  const targetPosition = isVertical ? Position.Top : Position.Left;
-  const sourcePosition = isVertical ? Position.Bottom : Position.Right;
+  const priority = showPriorities ? task.priority : "";
+  const hasTagRow = showTags && (tags.length > 0 || isAddingTag);
 
   const handleTagRemove = async (tagToRemove: string) => {
     // Immediately update the visual state
@@ -172,8 +179,15 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
       expanded={expanded}
       debugVisualization={debugVisualization}
     >
-      <Handle type="target" position={targetPosition} />
-      <Handle type="source" position={sourcePosition} />
+      {HANDLE_POSITIONS.map((position) => (
+        <Handle
+          key={position}
+          id={position}
+          type="source"
+          position={position}
+          className="tasks-map-handle"
+        />
+      ))}
 
       <div className="tasks-map-task-node-header">
         <TaskStatusToggle
@@ -181,49 +195,50 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
           task={task}
           onStatusChange={setStatus}
         />
-        {showPriorities && <TaskPriority priority={task.priority} />}
         <span ref={summaryRef} className="tasks-map-task-node-summary" />
-        <StarButton starred={starred} onClick={handleStarToggle} />
-        <LinkButton link={task.link} app={app} taskStatus={status} />
+        {priority && <TaskPriority priority={priority} />}
       </div>
 
-      <div className="tasks-map-task-node-content">
+      {/* Shown above the node while it is hovered */}
+      <div className="tasks-map-task-node-actions nodrag">
         {showTags && (
-          <div className="task-tags-container">
-            {tags.map((tag) => (
-              <Tag
-                key={tag}
-                tag={tag}
-                tagColorMode={tagColorMode}
-                tagColorSeed={tagColorSeed}
-                tagStaticColor={tagStaticColor}
-                onRemove={handleTagRemove}
-              />
-            ))}
-
-            {/* Add tag button/input */}
-            {isAddingTag ? (
-              <div className="nodrag">
-                <TagInput
-                  allTags={allTags}
-                  existingTags={tags}
-                  onAddTag={handleAddTag}
-                  onCancel={handleCancelAddTag}
-                  hasError={tagError}
-                />
-              </div>
-            ) : (
-              <span
-                className="tasks-map-add-tag-button"
-                onClick={() => setIsAddingTag(true)}
-              >
-                <Plus size={10} />
-                Add tag
-              </span>
-            )}
-          </div>
+          <button
+            className="clickable-icon tasks-map-node-action nodrag"
+            onClick={() => setIsAddingTag(true)}
+            aria-label="Add tag"
+          >
+            <TagIcon size={14} />
+          </button>
         )}
+        <StarButton starred={starred} onClick={handleStarToggle} />
+        <LinkButton link={task.link} app={app} />
       </div>
+
+      {hasTagRow && (
+        <div className="tasks-map-task-node-tags">
+          {tags.map((tag) => (
+            <Tag
+              key={tag}
+              tag={tag}
+              tagColorMode={tagColorMode}
+              tagColorSeed={tagColorSeed}
+              tagStaticColor={tagStaticColor}
+              onRemove={handleTagRemove}
+            />
+          ))}
+          {isAddingTag && (
+            <div className="nodrag">
+              <TagInput
+                allTags={allTags}
+                existingTags={tags}
+                onAddTag={handleAddTag}
+                onCancel={handleCancelAddTag}
+                hasError={tagError}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {debugVisualization && (
         <ExpandButton

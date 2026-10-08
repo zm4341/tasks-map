@@ -9,24 +9,27 @@ import {
   DATAVIEW_ID_REMOVAL,
   TAG_REMOVAL,
   WHITESPACE_NORMALIZE,
+  TASK_CHECKBOX_PATTERN,
 } from "./task-regex";
-
-const statusSymbols = {
-  todo: "[ ]",
-  in_progress: "[/]",
-  canceled: "[-]",
-  done: "[x]",
-};
+import { getTaskStatusConfig } from "./task-status";
 
 /**
  * Find the index of a task line in an array of lines by its ID.
- * Supports both emoji format (🆔 abc123) and Dataview format ([[id:: abc123]])
+ * Supports path:line IDs (from the sidebar), emoji format (🆔 abc123) and
+ * Dataview format ([[id:: abc123]])
  */
 function findTaskLineByIdOrText(
   lines: string[],
   taskId: string,
   taskText: string
 ): number {
+  // Tasks from the sidebar use "path:line" as ID, check that line first
+  const lineMatch = taskId.match(/:(\d+)$/);
+  if (lineMatch) {
+    const lineIdx = Number(lineMatch[1]);
+    if (lines[lineIdx]?.includes(taskText)) return lineIdx;
+  }
+
   // Try to find by emoji format ID
   let taskLineIdx = lines.findIndex((line: string) =>
     line.includes(`🆔 ${taskId}`)
@@ -106,17 +109,17 @@ export async function updateTaskStatusInVault(
     return;
   }
 
-  // Handle dataview tasks (inline status)
+  // Handle dataview tasks (inline status), writing the mark TaskGenius uses
+  const mark = getTaskStatusConfig(app).getMark(newStatus);
   await vault.process(file, (fileContent) => {
     const lines = fileContent.split(/\r?\n/);
     const taskLineIdx = findTaskLineByIdOrText(lines, task.id, task.text);
 
     if (taskLineIdx === -1) return fileContent;
 
-    // TODO: Verify if the escape is really useless here (or change this parsing completely). It was added by the linter, but it seems necessary for correct regex.
     lines[taskLineIdx] = lines[taskLineIdx].replace(
-      /\[([ x/\-])\]/, // eslint-disable-line no-useless-escape
-      statusSymbols[newStatus]
+      TASK_CHECKBOX_PATTERN,
+      (_match, listMarker) => `${listMarker}[${mark}]`
     );
     return lines.join("\n");
   });
@@ -1002,7 +1005,7 @@ export function getAllDataviewTasks(app: any): Task[] {
       }
     }
   }
-  const factory = new TaskFactory();
+  const factory = new TaskFactory(getTaskStatusConfig(app));
   const parsedTasks = tasks.map((rawTask) => factory.parse(rawTask));
 
   // Filter out empty tasks (tasks with no meaningful content after stripping metadata)

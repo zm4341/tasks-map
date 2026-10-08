@@ -4,6 +4,8 @@ import TasksMapPlugin from "../main";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Task } from "../types/task";
 import { TaskFactory } from "../lib/task-factory";
+import { getStatusLabel, getTaskStatusConfig } from "../lib/task-status";
+import { TaskStatusIcon } from "../components/task-status-icon";
 
 export const SIDEBAR_VIEW_TYPE = "tasks-map-sidebar";
 
@@ -15,29 +17,18 @@ interface TaskCardProps {
 }
 
 function TaskCard({ task, isOnCanvas, onDragStart, onOpenFile }: TaskCardProps) {
-  const statusIcon = {
-    todo: "○",
-    in_progress: "◐",
-    done: "●",
-    canceled: "✕",
-  }[task.status];
-
-  const statusColor = {
-    todo: "var(--text-muted)",
-    in_progress: "var(--text-accent)",
-    done: "var(--text-success)",
-    canceled: "var(--text-error)",
-  }[task.status];
-
   return (
     <div
-      className={`tasks-map-sidebar-card ${isOnCanvas ? "on-canvas" : ""}`}
+      className={`tasks-map-sidebar-card tasks-map-sidebar-card--${task.status} ${isOnCanvas ? "on-canvas" : ""}`}
       draggable={!isOnCanvas}
       onDragStart={(e) => !isOnCanvas && onDragStart(e, task)}
     >
       <div className="tasks-map-sidebar-card-header">
-        <span className="tasks-map-sidebar-card-status" style={{ color: statusColor }}>
-          {statusIcon}
+        <span
+          className="tasks-map-sidebar-card-status"
+          aria-label={getStatusLabel(task.status)}
+        >
+          <TaskStatusIcon status={task.status} />
         </span>
         <span className="tasks-map-sidebar-card-title">{task.summary || task.text}</span>
         <button
@@ -92,7 +83,7 @@ function SidebarContent({ plugin }: SidebarContentProps) {
 
     const allTasks: Task[] = [];
     const projectSet = new Set<string>();
-    const factory = new TaskFactory();
+    const factory = new TaskFactory(getTaskStatusConfig(plugin.app));
 
     const scanFolder = async (folder: TFolder) => {
       for (const child of folder.children) {
@@ -161,9 +152,14 @@ function SidebarContent({ plugin }: SidebarContentProps) {
       scanTasks(false); // silent refresh (no loading indicator)
     });
     
-    // Refresh canvas task IDs periodically
+    // Refresh canvas task IDs periodically, re-rendering only on changes
     const interval = setInterval(() => {
-      setCanvasTaskIds(plugin.getCanvasTaskIds());
+      const ids = plugin.getCanvasTaskIds();
+      setCanvasTaskIds((prev) =>
+        prev.length === ids.length && prev.every((id, i) => id === ids[i])
+          ? prev
+          : ids
+      );
     }, 1000);
 
     return () => {

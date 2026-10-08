@@ -4,20 +4,24 @@ import ReactFlow, {
   Background,
   useNodesState,
   useEdgesState,
-  addEdge,
   useReactFlow,
   NodeChange,
   Position,
+  ConnectionMode,
+  Connection,
+  Panel,
 } from "reactflow";
+import { Maximize } from "lucide-react";
 import { Notice, TFile, TFolder } from "obsidian";
 import { useApp } from "src/hooks/hooks";
 import { getAllTasks } from "src/lib/utils";
 import { TaskFactory } from "src/lib/task-factory";
+import { ALL_TASK_STATUSES, getTaskStatusConfig } from "src/lib/task-status";
+import { localize } from "src/lib/i18n";
 import { Task, TaskNode as TaskNodeType } from "src/types/task";
 import GuiOverlay from "src/components/gui-overlay";
 import TaskNode from "src/components/task-node";
 import { NO_TAGS_VALUE } from "src/components/tag-select";
-import { TaskMinimap } from "src/components/task-minimap";
 import HashEdge from "src/components/hash-edge";
 import { DeleteEdgeButton } from "src/components/delete-edge-button";
 import { TagsContext } from "src/contexts/context";
@@ -25,8 +29,6 @@ import { TagsContext } from "src/contexts/context";
 import { TaskStatus } from "src/types/task";
 import { TasksMapSettings, GraphData } from "src/types/settings";
 import TasksMapPlugin from "src/main";
-
-const ALL_STATUSES: TaskStatus[] = ["todo", "in_progress", "done", "canceled"];
 
 interface TaskMapGraphViewProps {
   settings: TasksMapSettings;
@@ -42,7 +44,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
   const [selectedTags, setSelectedTags] = React.useState<string[]>([]);
   const [selectedEdge, setSelectedEdge] = React.useState<string | null>(null);
   const [selectedStatuses, setSelectedStatuses] = React.useState<TaskStatus[]>([
-    ...ALL_STATUSES,
+    ...ALL_TASK_STATUSES,
   ]);
   const selectedEdgeRef = React.useRef<string | null>(null);
   const nodesRef = React.useRef(nodes);
@@ -98,6 +100,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
           text: n.data.task.text,
           tags: n.data.task.tags,
           status: n.data.task.status,
+          statusMark: n.data.task.statusMark,
           priority: n.data.task.priority,
           link: n.data.task.link,
           incomingLinks: n.data.task.incomingLinks,
@@ -109,6 +112,8 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
         id: e.id,
         source: e.source,
         target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
       })),
       viewport: { x: viewport.x, y: viewport.y, zoom: viewport.zoom },
     };
@@ -255,11 +260,15 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
         draggable: true,
       }));
     
-    // Restore edges
+    // Restore edges. Edges saved before nodes had a handle on every side
+    // connect the sides the layout direction used.
     const restoredEdges = savedData.edges.map((e) => ({
       id: e.id,
       source: e.source,
       target: e.target,
+      sourceHandle:
+        e.sourceHandle ?? (isVertical ? Position.Bottom : Position.Right),
+      targetHandle: e.targetHandle ?? (isVertical ? Position.Top : Position.Left),
       type: "hash" as const,
       data: {
         hash: e.id,
@@ -295,8 +304,11 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     
     // Try to load saved data
     loadSavedData();
-    
+
     isInitialLoadRef.current = false;
+
+    // The saved task data may be outdated, e.g. statuses changed since
+    updateNodes(true);
   };
 
   // Scan tasks directly from files (using path:line as ID)
@@ -308,7 +320,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     }
 
     const allTasks: Task[] = [];
-    const factory = new TaskFactory();
+    const factory = new TaskFactory(getTaskStatusConfig(app));
 
     const scanFolder = async (folder: TFolder) => {
       for (const child of folder.children) {
@@ -343,7 +355,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
   };
 
   // Update nodes - only updates content, doesn't change positions or add new nodes
-  const updateNodes = async () => {
+  const updateNodes = async (silent = false) => {
     // Scan tasks directly from files (path:line ID format)
     const scannedTasks = await scanTasksFromFiles();
     
@@ -390,8 +402,8 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     
     // Save after update
     setTimeout(() => saveGraphData(), 100);
-    
-    new Notice("Nodes updated");
+
+    if (!silent) new Notice("Nodes updated");
   };
 
   // Add a task to canvas (called from sidebar drag-drop)
@@ -519,7 +531,7 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     
     // Only apply filters if there are active tag/status filters
     const hasTagFilter = selectedTags.length > 0;
-    const hasStatusFilter = selectedStatuses.length < 4; // less than all statuses
+    const hasStatusFilter = selectedStatuses.length < ALL_TASK_STATUSES.length;
     
     if (!hasTagFilter && !hasStatusFilter) {
       // No filters active, ensure all nodes are visible
@@ -639,14 +651,16 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
   }, [selectedEdge, setEdges, saveGraphData]);
 
   const onConnect = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async (params: any) => {
+    async (params: Connection) => {
+      const { source, target } = params;
+      if (!source || !target) return;
+
       // Get tasks from nodes instead of tasks array (works for sidebar-added nodes)
-      const sourceNode = nodes.find((n) => n.id === params.source);
-      const targetNode = nodes.find((n) => n.id === params.target);
-      
-      const sourceTask = sourceNode?.data?.task || tasks.find((t) => t.id === params.source);
-      const targetTask = targetNode?.data?.task || tasks.find((t) => t.id === params.target);
+      const sourceNode = nodes.find((n) => n.id === source);
+      const targetNode = nodes.find((n) => n.id === target);
+
+      const sourceTask = sourceNode?.data?.task || tasks.find((t) => t.id === source);
+      const targetTask = targetNode?.data?.task || tasks.find((t) => t.id === target);
 
       if (!sourceTask || !targetTask) {
         new Notice("Cannot connect: task data not found");
@@ -655,24 +669,24 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
 
       // Create edge without modifying source files
       // Connection is only stored in data.json
-      const edgeId = `${params.source}-${params.target}`;
-      
-      setEdges((eds) =>
-        addEdge(
-          {
-            ...params,
-            id: edgeId,
-            type: "hash",
-            data: {
-              hash: edgeId,
-              layoutDirection: settings.layoutDirection,
-              debugVisualization: settings.debugVisualization,
-            },
-          },
-          eds
-        )
-      );
-      
+      const edgeId = `${source}-${target}`;
+      const newEdge = {
+        id: edgeId,
+        source,
+        target,
+        sourceHandle: params.sourceHandle,
+        targetHandle: params.targetHandle,
+        type: "hash",
+        data: {
+          hash: edgeId,
+          layoutDirection: settings.layoutDirection,
+          debugVisualization: settings.debugVisualization,
+        },
+      };
+
+      // Connecting the same two tasks again moves the edge to the new sides
+      setEdges((eds) => [...eds.filter((e) => e.id !== edgeId), newEdge]);
+
       // Save edges after connecting
       setTimeout(() => saveGraphData(), 100);
       new Notice("Connected (saved to data.json only)");
@@ -687,6 +701,22 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     ]
   );
 
+  // A node can't be connected to itself
+  const isValidConnection = useCallback(
+    (connection: Connection) => connection.source !== connection.target,
+    []
+  );
+
+  // While dragging an edge, every node shows its handles
+  const [isConnecting, setIsConnecting] = React.useState(false);
+  const onConnectStart = useCallback(() => setIsConnecting(true), []);
+  const onConnectEnd = useCallback(() => setIsConnecting(false), []);
+
+  // Zoom so that all visible nodes fit, centered on them
+  const fitView = useCallback(() => {
+    reactFlowInstance.fitView({ padding: 0.2, maxZoom: 1, duration: 300 });
+  }, [reactFlowInstance]);
+
   const tagsContextValue = useMemo(
     () => ({
       allTags,
@@ -695,10 +725,18 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
     [allTags, updateTaskTags]
   );
 
+  const containerClassName = [
+    "tasks-map-graph-container",
+    isDragOver && "drag-over",
+    isConnecting && "is-connecting",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <TagsContext.Provider value={tagsContextValue}>
       <div
-        className={`tasks-map-graph-container ${isDragOver ? "drag-over" : ""}`}
+        className={containerClassName}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -713,7 +751,11 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
           proOptions={{ hideAttribution: true }}
           minZoom={0.1}
           fitView
+          connectionMode={ConnectionMode.Loose}
+          isValidConnection={isValidConnection}
           onConnect={onConnect}
+          onConnectStart={onConnectStart}
+          onConnectEnd={onConnectEnd}
           onEdgeClick={onEdgeClick}
           onNodeClick={onNodeClick}
           onPaneClick={onPaneClick}
@@ -725,11 +767,19 @@ export default function TaskMapGraphView({ settings, plugin }: TaskMapGraphViewP
             setSelectedTags={setSelectedTags}
             reloadTasks={updateNodes}
             loadSavedData={loadSavedData}
-            allStatuses={ALL_STATUSES}
+            allStatuses={ALL_TASK_STATUSES}
             selectedStatuses={selectedStatuses}
             setSelectedStatuses={setSelectedStatuses}
           />
-          <TaskMinimap />
+          <Panel position="bottom-right" className="tasks-map-canvas-controls">
+            <button
+              className="clickable-icon tasks-map-canvas-control"
+              onClick={fitView}
+              aria-label={localize({ en: "Fit view", zh: "适应画布" })}
+            >
+              <Maximize size={16} />
+            </button>
+          </Panel>
           <Background />
         </ReactFlow>
         {selectedEdge && <DeleteEdgeButton onDelete={onDeleteSelectedEdge} />}

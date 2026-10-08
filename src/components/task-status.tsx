@@ -1,20 +1,16 @@
 import React from "react";
+import { Menu } from "obsidian";
 import { Task, TaskStatus } from "src/types/task";
 import { updateTaskStatusInVault } from "src/lib/utils";
+import { ALL_TASK_STATUSES, getStatusLabel } from "src/lib/task-status";
 import { useApp } from "src/hooks/hooks";
+import { getStatusIconId, TaskStatusIcon } from "./task-status-icon";
 
 interface TaskStatusProps {
   status: TaskStatus;
   task: Task;
   onStatusChange: (newStatus: TaskStatus) => void; // eslint-disable-line no-unused-vars
 }
-
-const statusIcons = {
-  todo: "⬜",
-  in_progress: "🔵",
-  done: "✅",
-  canceled: "❌",
-};
 
 export function TaskStatusToggle({
   status,
@@ -23,25 +19,37 @@ export function TaskStatusToggle({
 }: TaskStatusProps) {
   const app = useApp();
 
-  const handleToggleStatus = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    // Cycle through statuses: todo -> in_progress -> done
-    // (canceled status is set through a separate action)
-    const statusCycle: TaskStatus[] = ["todo", "in_progress", "done"];
-    const currentIndex = statusCycle.indexOf(status);
-    const newStatus = statusCycle[(currentIndex + 1) % statusCycle.length];
+  const changeStatus = async (newStatus: TaskStatus) => {
+    if (newStatus === status) return;
     await updateTaskStatusInVault(task, newStatus, app);
     onStatusChange(newStatus);
   };
 
+  // Like the status column of TaskGenius' table view, pick from a menu
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const menu = new Menu();
+    ALL_TASK_STATUSES.forEach((option) => {
+      // Archived is not in the status cycle, TaskGenius lists it apart too
+      if (option === "archived") menu.addSeparator();
+      menu.addItem((item) => {
+        item
+          .setTitle(getStatusLabel(option))
+          .setIcon(getStatusIconId(option))
+          .onClick(() => changeStatus(option));
+        if (option === status) item.setChecked(true);
+      });
+    });
+    menu.showAtMouseEvent(e.nativeEvent);
+  };
+
   return (
-    <div className="tasks-map-status-container">
-      <div
-        onClick={handleToggleStatus}
-        className="tasks-map-task-status-toggle"
-      >
-        {statusIcons[status]}
-      </div>
-    </div>
+    <button
+      className="tasks-map-status-button nodrag"
+      onClick={handleClick}
+      aria-label={getStatusLabel(status)}
+    >
+      <TaskStatusIcon status={status} />
+    </button>
   );
 }

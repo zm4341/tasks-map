@@ -42,6 +42,7 @@ export interface SavedNodeData {
     text: string;
     tags: string[];
     status: string;
+    statusMark?: string;
     priority: string;
     link: string;
     incomingLinks: string[];
@@ -54,6 +55,10 @@ export interface SavedEdgeData {
   id: string;
   source: string;
   target: string;
+  // The node sides the edge connects ("top", "right", "bottom", "left"),
+  // missing on edges saved before nodes had a handle on every side
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
 }
 
 export interface SavedViewport {

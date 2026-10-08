@@ -3,22 +3,11 @@ import { App } from "obsidian";
 import { ArrowUpRight } from "lucide-react";
 
 interface LinkButtonProps {
-  taskStatus?: "todo" | "done" | "canceled" | "in_progress";
   link: string;
   app: App;
 }
 
-export const LinkButton = ({
-  link,
-  app,
-  taskStatus = "todo",
-}: LinkButtonProps) => {
-  const status =
-    taskStatus === "done"
-      ? "success"
-      : taskStatus === "canceled"
-        ? "error"
-        : "normal";
+export const LinkButton = ({ link, app }: LinkButtonProps) => {
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -27,10 +16,11 @@ export const LinkButton = ({
 
   return (
     <button
-      className={`tasks-map-link-button tasks-map-link-button--${status}`}
+      className="clickable-icon tasks-map-node-action nodrag"
       onClick={handleClick}
+      aria-label="Open file"
     >
-      <ArrowUpRight size={16} />
+      <ArrowUpRight size={14} />
     </button>
   );
 };

@@ -9,6 +9,15 @@ interface TaskBackgroundProps {
   children: React.ReactNode;
 }
 
+const STATUS_CLASSES: Record<TaskStatus, string> = {
+  todo: "tasks-map-task-background--todo",
+  in_progress: "tasks-map-task-background--in-progress",
+  done: "tasks-map-task-background--done",
+  canceled: "tasks-map-task-background--canceled",
+  planned: "tasks-map-task-background--planned",
+  archived: "tasks-map-task-background--archived",
+};
+
 export function TaskBackground({
   status,
   starred = false,
@@ -16,22 +25,9 @@ export function TaskBackground({
   debugVisualization,
   children,
 }: TaskBackgroundProps) {
-  const getStatusClass = () => {
-    switch (status) {
-      case "done":
-        return "tasks-map-task-background--done";
-      case "in_progress":
-        return "tasks-map-task-background--in-progress";
-      case "canceled":
-        return "tasks-map-task-background--canceled";
-      default:
-        return "tasks-map-task-background--todo";
-    }
-  };
-
   const className = [
     "tasks-map-task-background",
-    getStatusClass(),
+    STATUS_CLASSES[status],
     starred && "tasks-map-task-background--starred",
     expanded && "tasks-map-task-background--expanded",
     debugVisualization && "tasks-map-task-background--debug",

@@ -12,6 +12,7 @@ import {
 } from "./types/settings";
 import { TasksMapSettingTab } from "./settings/settings-tab";
 import { Task } from "./types/task";
+import { registerTaskStatusIcons } from "./components/task-status-icon";
 
 export default class TasksMapPlugin extends Plugin {
   settings: TasksMapSettings = DEFAULT_SETTINGS;
@@ -38,6 +39,8 @@ export default class TasksMapPlugin extends Plugin {
   async onload() {
     // Load all data (settings + graph data)
     await this.loadAllData();
+
+    registerTaskStatusIcons();
 
     // Always register the view - it will handle the Dataview check internally
     this.registerView(

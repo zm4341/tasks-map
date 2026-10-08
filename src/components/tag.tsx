@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useLayoutEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { getTagColor } from "../lib/utils";
 
@@ -17,44 +17,26 @@ export function Tag({
   tagStaticColor = "#3B82F6",
   onRemove,
 }: TagProps) {
-  const [isHovered, setIsHovered] = useState(false);
+  const tagRef = useRef<HTMLSpanElement>(null);
+  const color = getTagColor(tag, tagColorMode, tagColorSeed, tagStaticColor);
 
-  const backgroundColor = getTagColor(
-    tag,
-    tagColorMode,
-    tagColorSeed,
-    tagStaticColor
-  );
+  // The color goes into a CSS variable, global.css decides how it is used
+  useLayoutEffect(() => {
+    tagRef.current?.style.setProperty("--tasks-map-tag-color", color);
+  }, [color]);
 
   const handleRemoveClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     onRemove?.(tag);
   };
 
-  // Create a style element for dynamic color if it doesn't exist
-  useEffect(() => {
-    const tagHash = tag.replace(/[^a-zA-Z0-9]/g, "");
-    const className = `tag-${tagHash}`;
-
-    if (!document.querySelector(`style[data-tag="${tagHash}"]`)) {
-      const style = document.createElement("style");
-      style.setAttribute("data-tag", tagHash);
-      style.textContent = `.${className} { background-color: ${backgroundColor} !important; }`;
-      document.head.appendChild(style);
-    }
-  }, [tag, backgroundColor]);
-
-  const tagHash = tag.replace(/[^a-zA-Z0-9]/g, "");
-  const dynamicClassName = `tag-${tagHash}`;
-
   return (
     <span
-      className={`tasks-map-tag ${dynamicClassName} ${onRemove ? "removable" : ""}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      ref={tagRef}
+      className={`tasks-map-tag ${onRemove ? "removable" : ""}`}
     >
-      <span>{tag}</span>
-      {isHovered && onRemove && (
+      <span className="tasks-map-tag-text">{tag}</span>
+      {onRemove && (
         <X
           size={12}
           className="tasks-map-tag-remove-icon"

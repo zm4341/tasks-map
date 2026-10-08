@@ -13,8 +13,16 @@ import {
   STAR_PATTERN,
   STAR_PATTERN_GLOBAL,
 } from "./task-regex";
+import { createTaskStatusConfig, TaskStatusConfig } from "./task-status";
 
 export class TaskFactory {
+  private statusConfig: TaskStatusConfig;
+
+  // Pass getTaskStatusConfig(app) to read statuses the way TaskGenius does
+  constructor(statusConfig: TaskStatusConfig = createTaskStatusConfig()) {
+    this.statusConfig = statusConfig;
+  }
+
   public parse(rawTask: RawTask, type: "dataview" | "note" = "dataview"): Task {
     const status = rawTask.status;
     const text = rawTask.text;
@@ -27,6 +35,8 @@ export class TaskFactory {
       tags: this.parseTags(text),
       priority: this.parsePriority(text),
       status: this.parseStatus(status),
+      // Note-based tasks have words like "open" instead of a mark
+      statusMark: status.length === 1 ? status : undefined,
       link: rawTask.link.path,
       incomingLinks: this.parseIncomingLinks(text),
       starred: this.parseStarred(text),
@@ -86,23 +96,19 @@ export class TaskFactory {
 
   private parseStatus(status: string): TaskStatus {
     switch (status) {
-      case "x":
-        return "done";
-      case "/":
-        return "in_progress";
-      case "-":
-        return "canceled";
       // Note-based task status values
       case "done":
         return "done";
       case "in-progress":
         return "in_progress";
+      case "canceled":
+        return "canceled";
       case "open":
         return "todo";
       case "none":
         return "todo";
       default:
-        return "todo";
+        return this.statusConfig.getStatus(status);
     }
   }
 

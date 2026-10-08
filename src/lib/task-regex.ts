@@ -23,6 +23,10 @@ export const DATAVIEW_ID_REMOVAL = /\[\[id::\s*\S+\]\]/g;
 export const TAG_REMOVAL = /#\S+/g;
 export const WHITESPACE_NORMALIZE = /\s+/g;
 
+// Checkbox of a task line, with the list marker before it in group 1:
+// "- [x]", "* [?]", "1. [/]", also inside a blockquote ("> - [ ]")
+export const TASK_CHECKBOX_PATTERN = /^((?:\s*>)*\s*(?:[-*+]|\d+[.)])\s+)\[.\]/;
+
 // Tag pattern - for parsing tags
 export const TAG_PATTERN = /(?:^|\s)#(\S+)/g;
 

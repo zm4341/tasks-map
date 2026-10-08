@@ -7,19 +7,12 @@ interface StarButtonProps {
 
 export function StarButton({ starred, onClick }: StarButtonProps) {
   return (
-    <span
-      className="tasks-map-star-button"
+    <button
+      className={`clickable-icon tasks-map-node-action tasks-map-star-button nodrag ${starred ? "is-starred" : ""}`}
       onClick={onClick}
-      title={starred ? "Remove star" : "Add star"}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          onClick();
-        }
-      }}
+      aria-label={starred ? "Remove star" : "Add star"}
     >
-      <Star size={16} fill={starred ? "currentColor" : "none"} />
-    </span>
+      <Star size={14} fill={starred ? "currentColor" : "none"} />
+    </button>
   );
 }

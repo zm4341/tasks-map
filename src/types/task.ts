@@ -1,6 +1,14 @@
 import { Node, Edge } from "reactflow";
 
-export type TaskStatus = "todo" | "in_progress" | "canceled" | "done";
+// The statuses of TaskGenius: not started, in progress, completed, abandoned,
+// planned and archived (see src/lib/task-status.ts)
+export type TaskStatus =
+  | "todo"
+  | "in_progress"
+  | "canceled"
+  | "done"
+  | "planned"
+  | "archived";
 export type TaskType = "dataview" | "note";
 
 export interface RawTask {
@@ -15,7 +23,8 @@ export interface Task {
   summary: string;
   text: string;
   tags: string[];
-  status: TaskStatus; // [ ] todo, [/] in_progress, [-] canceled, [x] done
+  status: TaskStatus;
+  statusMark?: string; // The character between the brackets, e.g. "?" for [?]
   priority: string;
   link: string;
   incomingLinks: string[]; // References to other tasks (format depends on type)

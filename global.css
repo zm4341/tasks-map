@@ -14,16 +14,10 @@ If your plugin does not need CSS, delete this file.
   --tasks-map-color-white: #ffffff;
 }
 
-.theme-dark {
-  --tasks-map-task-completed-green: #1e3821;
-  --tasks-map-task-in-progress-blue: #1c5e8e;
-  --tasks-map-task-canceled-red: #5c1a1a;
-}
-
-.theme-light {
-  --tasks-map-task-completed-green: #6de27b;
-  --tasks-map-task-in-progress-blue: #77b4d3;
-  --tasks-map-task-canceled-red: #ff6b6b;
+/* Colors of TaskGenius' status icons */
+body {
+  --tasks-map-status-in-progress: #bd8e37;
+  --tasks-map-status-done: #8e68f5;
 }
 
 /* Expand Button Styles */
@@ -87,7 +81,7 @@ If your plugin does not need CSS, delete this file.
 
 .tasks-map-delete-edge-button {
   padding: 10px;
-  background: var(--tasks-map-color-red);
+  background: var(--color-red);
   color: var(--tasks-map-color-white);
   border: none;
   border-radius: 6px;
@@ -96,78 +90,108 @@ If your plugin does not need CSS, delete this file.
 }
 
 .tasks-map-delete-edge-button:hover {
-  background: var(--tasks-map-color-red-hover, #c53030);
+  background: color-mix(in srgb, var(--color-red) 85%, black);
 }
 
-/* Link Button Styles */
-.tasks-map-link-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  width: 28px;
-  height: 28px;
-  align-self: flex-start;
-  margin-left: auto;
-}
-
-.tasks-map-link-button--success {
-  color: var(--tasks-map-task-completed-green);
-}
-
-.tasks-map-link-button--error {
-  color: var(--tasks-map-task-canceled-red);
-}
-
-.tasks-map-link-button--normal {
-  color: inherit;
-}
-
-.tasks-map-link-button:hover {
-  background: rgba(var(--tasks-map-color-black-rgb), 0.1);
-}
-
-/* Task Node Styles */
+/* ========== Task Node ========== */
 .tasks-map-task-node-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  margin-bottom: 2px;
 }
 
-.tasks-map-star-button {
-  background: transparent;
-  border: none;
-  outline: none;
-  cursor: pointer;
-  padding: 0;
-  margin: 0;
+.tasks-map-task-node-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: var(--font-semibold);
+  line-height: 20px;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+/* Status icon, opens the status menu */
+.tasks-map-task-background .tasks-map-status-button {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
-  transition: color 0.2s ease;
-  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
   box-shadow: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
+  cursor: pointer;
 }
 
-.tasks-map-star-button:hover {
-  color: rgb(255, 215, 0);
+.tasks-map-task-background .tasks-map-status-button:hover {
+  background-color: var(--background-modifier-hover);
 }
 
-.tasks-map-star-button svg[fill="currentColor"] {
-  color: rgb(255, 215, 0);
+.tasks-map-task-background .tasks-map-status-button:focus-visible {
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
 }
 
-.tasks-map-task-node-content {
-  position: relative;
-  flex: 1;
+.tasks-map-status-icon {
+  display: flex;
+}
+
+.tasks-map-status-icon > svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Actions float above the top right corner while the node is hovered */
+.tasks-map-task-node-actions {
+  position: absolute;
+  top: -24px;
+  right: 10px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--tasks-map-surface-border);
+  border-radius: 8px;
+  background: inherit;
+  box-shadow: var(--shadow-s);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.react-flow__node:hover .tasks-map-task-node-actions,
+.tasks-map-task-node-actions:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tasks-map-task-background .tasks-map-node-action {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 6px;
+}
+
+.tasks-map-task-background .tasks-map-star-button:hover,
+.tasks-map-task-background .tasks-map-star-button.is-starred {
+  color: #f5b400;
+}
+
+.tasks-map-task-node-header .tasks-map-task-priority {
+  flex-shrink: 0;
+}
+
+.tasks-map-task-node-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
 }
 
 /* Task Details Styles */
@@ -182,19 +206,29 @@ If your plugin does not need CSS, delete this file.
 
 /* Tag Styles */
 .tasks-map-tag {
+  /* Set per tag from the tag color settings */
+  --tasks-map-tag-color: var(--interactive-accent);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  max-width: 100%;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 10px;
   font-size: 11px;
-  font-weight: 500;
-  margin-right: 4px;
-  margin-bottom: 2px;
-  color: white;
-  padding: 3px 8px;
-  border-radius: 12px;
-  border: none;
+  font-weight: var(--font-medium);
   white-space: nowrap;
-  background-color: #3b82f6; /* fallback color */
+  color: color-mix(in srgb, var(--tasks-map-tag-color) 65%, var(--text-normal));
+  background-color: color-mix(
+    in srgb,
+    var(--tasks-map-tag-color) 18%,
+    transparent
+  );
+}
+
+.tasks-map-tag-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tasks-map-tag.removable {
@@ -202,7 +236,13 @@ If your plugin does not need CSS, delete this file.
 }
 
 .tasks-map-tag-remove-icon {
-  color: white;
+  display: none;
+  flex-shrink: 0;
+  margin-right: -3px;
+}
+
+.tasks-map-tag:hover .tasks-map-tag-remove-icon {
+  display: block;
 }
 
 .tasks-map-tag-input {
@@ -370,37 +410,6 @@ If your plugin does not need CSS, delete this file.
   font-size: 11px !important;
 }
 
-.tasks-map-add-tag-button {
-  background-color: rgba(0, 0, 0, 0.2);
-  color: white;
-  padding: 3px 8px;
-  border-radius: 12px;
-  font-size: 11px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.task-tags-container {
-  display: flex;
-  align-items: flex-start;
-  gap: 4px;
-  min-height: 24px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
-.task-tags-container:hover .tasks-map-add-tag-button {
-  opacity: 1;
-}
-
-.tasks-map-task-node-summary {
-  flex: 1;
-}
-
 /* GUI Overlay Styles */
 .tasks-map-gui-overlay-bottom {
   position: absolute;
@@ -440,27 +449,40 @@ If your plugin does not need CSS, delete this file.
   color: var(--text-on-accent);
 }
 
-/* Task Priority Styles */
+/* Task Priority Styles, colored like in TaskGenius' table view */
 .tasks-map-task-priority {
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 7px 0 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: var(--font-medium);
+  white-space: nowrap;
+  color: var(--tasks-map-priority-color);
+  background-color: color-mix(
+    in srgb,
+    var(--tasks-map-priority-color) 15%,
+    transparent
+  );
 }
 
-/* Task Status Styles */
-.tasks-map-status-container {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+.tasks-map-task-priority--highest,
+.tasks-map-task-priority--high {
+  --tasks-map-priority-color: var(--text-error);
 }
 
-.tasks-map-task-status-toggle {
-  width: 22px;
-  height: 22px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.tasks-map-task-priority--medium {
+  --tasks-map-priority-color: var(--text-warning);
+}
+
+.tasks-map-task-priority--low {
+  --tasks-map-priority-color: var(--text-muted);
+}
+
+.tasks-map-task-priority--lowest {
+  --tasks-map-priority-color: var(--text-faint);
 }
 
 /* Hash Edge Styles */
@@ -473,107 +495,181 @@ If your plugin does not need CSS, delete this file.
   pointer-events: none;
 }
 
-/* Link Button SVG Styles */
-.tasks-map-link-button svg {
-  display: block;
+.tasks-map-graph-container .react-flow__edge-path {
+  stroke: var(--tasks-map-edge-color);
+  stroke-width: 2;
 }
 
-/* Task Minimap Styles */
-.tasks-map-react-flow__minimap {
-  background: var(--background-primary) !important;
-  border-radius: 8px !important;
-  overflow: hidden !important;
-  box-shadow: 0 2px 8px rgba(var(--tasks-map-color-black), 0.12) !important;
+.tasks-map-edge-arrow {
+  fill: var(--tasks-map-edge-color);
+}
+
+.tasks-map-graph-container .react-flow__edge:hover .react-flow__edge-path,
+.tasks-map-graph-container .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--interactive-accent);
+}
+
+.tasks-map-graph-container .react-flow__edge:hover .tasks-map-edge-arrow,
+.tasks-map-graph-container .react-flow__edge.selected .tasks-map-edge-arrow {
+  fill: var(--interactive-accent);
+}
+
+/* The edge being dragged out of a handle */
+.tasks-map-graph-container .react-flow__connection-path {
+  stroke: var(--interactive-accent);
+  stroke-width: 2;
+}
+
+/* Connection handles, one on each side, shown while hovering or connecting */
+.tasks-map-graph-container .react-flow__handle.tasks-map-handle {
+  width: 12px;
+  height: 12px;
+  min-width: 0;
+  min-height: 0;
+  border: 2px solid var(--interactive-accent);
+  border-radius: 50%;
+  background-color: var(--background-primary);
+  opacity: 0;
+  transition: opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tasks-map-graph-container .react-flow__handle-top.tasks-map-handle {
+  top: -6px;
+}
+
+.tasks-map-graph-container .react-flow__handle-right.tasks-map-handle {
+  right: -6px;
+}
+
+.tasks-map-graph-container .react-flow__handle-bottom.tasks-map-handle {
+  bottom: -6px;
+}
+
+.tasks-map-graph-container .react-flow__handle-left.tasks-map-handle {
+  left: -6px;
+}
+
+.tasks-map-graph-container .react-flow__node:hover .tasks-map-handle,
+.tasks-map-graph-container .react-flow__node.selected .tasks-map-handle,
+.tasks-map-graph-container.is-connecting .tasks-map-handle {
+  opacity: 1;
+}
+
+.tasks-map-graph-container .react-flow__handle.tasks-map-handle:hover {
+  box-shadow: 0 0 0 4px
+    color-mix(in srgb, var(--interactive-accent) 30%, transparent);
+}
+
+/* Fit view button in the bottom right corner */
+.tasks-map-canvas-controls {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--tasks-map-surface-border);
+  border-radius: 10px;
+  background-color: var(--tasks-map-surface);
+  box-shadow: var(--shadow-s);
+}
+
+.tasks-map-canvas-controls .tasks-map-canvas-control {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 7px;
 }
 
 /* Task Map Graph View Styles */
 .tasks-map-graph-container {
+  --tasks-map-surface: var(--background-primary);
+  --tasks-map-surface-border: var(--background-modifier-border);
+  --tasks-map-edge-color: var(--text-faint);
   width: 100%;
   height: 100%;
 }
 
-/* Task Background Styles */
-.tasks-map-task-background {
-  border-radius: var(--radius-m);
-  padding: 12px;
-  width: 250px;
-  min-height: 120px;
-  max-height: fit-content;
-  box-shadow: 0 2px 8px rgba(var(--tasks-map-color-black-rgb),0.07);
-  font-weight: 500;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  position: relative;
-  transition: width 0.2s;
+/* On dark themes nodes would have the color of the canvas, so lift them */
+.theme-dark .tasks-map-graph-container {
+  --tasks-map-surface: color-mix(
+    in srgb,
+    var(--background-primary) 91%,
+    var(--text-normal)
+  );
+  --tasks-map-surface-border: color-mix(
+    in srgb,
+    var(--background-primary) 80%,
+    var(--text-normal)
+  );
 }
 
-.tasks-map-task-background--expanded {
-  max-height: none;
+/* Task Background Styles */
+.tasks-map-task-background {
+  position: relative;
+  box-sizing: border-box;
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--tasks-map-surface-border);
+  border-radius: 12px;
+  background-color: var(--tasks-map-surface);
+  box-shadow: var(--shadow-s);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .tasks-map-task-background--debug {
   padding-bottom: 40px; /* Extra space for expand button (24px height + 16px margin) */
 }
 
-.tasks-map-task-background--todo {
-  background: var(--background-secondary);
-  border: 1px solid rgba(var(--tasks-map-color-black-rgb), 0.1);
-  color: var(--text-normal);
+.tasks-map-task-background--in-progress {
+  border-color: color-mix(
+    in srgb,
+    var(--tasks-map-status-in-progress) 60%,
+    var(--tasks-map-surface-border)
+  );
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--tasks-map-status-in-progress) 8%, transparent),
+    color-mix(in srgb, var(--tasks-map-status-in-progress) 8%, transparent)
+  );
 }
 
 .tasks-map-task-background--done {
-  background: var(--tasks-map-task-completed-green);
-  border: 1px solid var(--tasks-map-color-green);
-  color: var(--text-success);
+  border-color: color-mix(
+    in srgb,
+    var(--tasks-map-status-done) 50%,
+    var(--tasks-map-surface-border)
+  );
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--tasks-map-status-done) 7%, transparent),
+    color-mix(in srgb, var(--tasks-map-status-done) 7%, transparent)
+  );
 }
 
-.tasks-map-task-background--in-progress {
-  background: var(--tasks-map-task-in-progress-blue);
-  border: 1px solid var(--tasks-map-color-blue);
-  color: var(--tasks-map-color-blue);
+.tasks-map-task-background--done .tasks-map-task-node-summary,
+.tasks-map-task-background--archived .tasks-map-task-node-summary {
+  color: var(--text-muted);
 }
 
-.tasks-map-task-background--canceled {
-  background: var(--tasks-map-task-canceled-red);
-  border: 1px solid var(--tasks-map-color-red);
-  color: var(--text-error);
+.tasks-map-task-background--canceled .tasks-map-task-node-summary {
+  color: var(--text-faint);
+  text-decoration: line-through;
+}
+
+.tasks-map-task-background--canceled,
+.tasks-map-task-background--archived {
+  opacity: 0.7;
 }
 
 .tasks-map-task-background--starred {
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.6),
-              0 0 40px rgba(255, 215, 0, 0.4),
-              0 2px 8px rgba(var(--tasks-map-color-black-rgb), 0.07);
-  animation: tasks-map-pulse-gold 2s ease-in-out infinite;
+  border-color: rgba(245, 180, 0, 0.8);
+  box-shadow: 0 0 0 1px rgba(245, 180, 0, 0.35),
+    0 0 16px rgba(245, 180, 0, 0.2), var(--shadow-s);
 }
 
-.tasks-map-task-background--todo.tasks-map-task-background--starred {
-  border-color: rgba(255, 215, 0, 0.8);
-}
-
-.tasks-map-task-background--done.tasks-map-task-background--starred {
-  border-color: rgba(255, 215, 0, 0.8);
-}
-
-.tasks-map-task-background--in-progress.tasks-map-task-background--starred {
-  border-color: rgba(255, 215, 0, 0.8);
-}
-
-.tasks-map-task-background--canceled.tasks-map-task-background--starred {
-  border-color: rgba(255, 215, 0, 0.8);
-}
-
-@keyframes tasks-map-pulse-gold {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6),
-                0 0 40px rgba(255, 215, 0, 0.4),
-                0 2px 8px rgba(var(--tasks-map-color-black-rgb), 0.07);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(255, 215, 0, 0.8),
-                0 0 60px rgba(255, 215, 0, 0.6),
-                0 2px 8px rgba(var(--tasks-map-color-black-rgb), 0.07);
-  }
+.react-flow__node.selected > .tasks-map-task-background {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 1px var(--interactive-accent), var(--shadow-s);
 }
 
 /* Centered Message Container Styles */
@@ -623,20 +719,6 @@ If your plugin does not need CSS, delete this file.
 
 .tasks-map-message-link:hover {
   text-decoration: underline;
-}
-
-/* Add Tag Button Hover Styles */
-.task-tags-container:hover .tasks-map-add-tag-button {
-  opacity: 1 !important;
-}
-
-.tasks-map-add-tag-button {
-  transition: opacity 0.2s ease, background-color 0.2s ease;
-}
-
-.tasks-map-add-tag-button:hover {
-  background-color: rgba(0, 0, 0, 0.3) !important;
-  color: white !important;
 }
 
 /* ========== Sidebar Styles ========== */
@@ -763,7 +845,7 @@ If your plugin does not need CSS, delete this file.
 }
 
 .tasks-map-sidebar-card:hover {
-  background: rgba(var(--interactive-accent-rgb), 0.1);
+  background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
   border-color: var(--interactive-accent);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -790,8 +872,18 @@ If your plugin does not need CSS, delete this file.
 }
 
 .tasks-map-sidebar-card-status {
-  font-size: 14px;
-  line-height: 1;
+  display: flex;
+  flex-shrink: 0;
+}
+
+.tasks-map-sidebar-card--done .tasks-map-sidebar-card-title,
+.tasks-map-sidebar-card--canceled .tasks-map-sidebar-card-title,
+.tasks-map-sidebar-card--archived .tasks-map-sidebar-card-title {
+  color: var(--text-muted);
+}
+
+.tasks-map-sidebar-card--canceled .tasks-map-sidebar-card-title {
+  text-decoration: line-through;
 }
 
 .tasks-map-sidebar-card-title {
@@ -833,7 +925,7 @@ If your plugin does not need CSS, delete this file.
 .tasks-map-sidebar-card-badge {
   font-size: 11px;
   color: var(--text-success);
-  background: var(--background-modifier-success);
+  background: color-mix(in srgb, var(--text-success) 15%, transparent);
   padding: 2px 6px;
   border-radius: 10px;
 }
@@ -856,7 +948,7 @@ If your plugin does not need CSS, delete this file.
 
 /* Drop indicator on canvas */
 .tasks-map-graph-container.drag-over {
-  background: rgba(var(--interactive-accent-rgb), 0.05);
+  background: color-mix(in srgb, var(--interactive-accent) 5%, transparent);
 }
 
 .tasks-map-graph-container.drag-over::after {
