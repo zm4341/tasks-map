@@ -8,7 +8,7 @@ import { localize, LocalizedText } from "./i18n";
  * show the same status here as in TaskGenius.
  */
 
-const TASK_GENIUS_PLUGIN_ID = "obsidian-task-progress-bar";
+export const TASK_GENIUS_PLUGIN_ID = "obsidian-task-progress-bar";
 
 type StatusCategory =
   | "archived"

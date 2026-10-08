@@ -187,11 +187,60 @@ body {
   flex-shrink: 0;
 }
 
+/* The project of the task, below its title. The icon sits in the column of
+   the status icon, the path lines up with the title. */
+.tasks-map-task-project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: -2px;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.tasks-map-task-project-icon {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: center;
+  width: 20px;
+}
+
+.tasks-map-task-project-path {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tasks-map-task-project-segment {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The project itself stands out from its parents */
+.tasks-map-task-project-segment:last-child {
+  flex-shrink: 0;
+  max-width: 100%;
+  color: var(--text-muted);
+  font-weight: var(--font-medium);
+}
+
+.tasks-map-task-project-separator {
+  flex-shrink: 0;
+}
+
+/* Tags line up with the title too */
 .tasks-map-task-node-tags {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
+  padding-left: 28px;
 }
 
 /* Task Details Styles */

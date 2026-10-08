@@ -11,6 +11,7 @@ import { Tag } from "./tag";
 import { TaskStatusToggle } from "./task-status";
 import { TaskBackground } from "./task-background";
 import { TaskPriority } from "./task-priority";
+import { TaskProject } from "./task-project";
 import { TagInput } from "./tag-input";
 import { useSummaryRenderer } from "../hooks/use-summary-renderer";
 import {
@@ -20,6 +21,7 @@ import {
   removeStarFromTaskInVault,
 } from "../lib/utils";
 import { TagsContext } from "../contexts/context";
+import { getProjectTagPrefix, splitProjectTags } from "../lib/project-tags";
 
 export const NODEWIDTH = 250;
 export const NODEHEIGHT = 120;
@@ -79,7 +81,12 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
   }, [task.tags]);
 
   const priority = showPriorities ? task.priority : "";
-  const hasTagRow = showTags && (tags.length > 0 || isAddingTag);
+  // Project tags show as the project of the task, not among its tags
+  const { projects, tags: otherTags } = splitProjectTags(
+    tags,
+    getProjectTagPrefix(app)
+  );
+  const hasTagRow = showTags && (otherTags.length > 0 || isAddingTag);
 
   const handleTagRemove = async (tagToRemove: string) => {
     // Immediately update the visual state
@@ -199,6 +206,11 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
         {priority && <TaskPriority priority={priority} />}
       </div>
 
+      {showTags &&
+        projects.map((project) => (
+          <TaskProject key={project} path={project} />
+        ))}
+
       {/* Shown above the node while it is hovered */}
       <div className="tasks-map-task-node-actions nodrag">
         {showTags && (
@@ -216,7 +228,7 @@ export default function TaskNode({ data }: NodeProps<TaskNodeData>) {
 
       {hasTagRow && (
         <div className="tasks-map-task-node-tags">
-          {tags.map((tag) => (
+          {otherTags.map((tag) => (
             <Tag
               key={tag}
               tag={tag}
