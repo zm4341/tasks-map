@@ -9,9 +9,9 @@ import {
   DATAVIEW_ID_REMOVAL,
   TAG_REMOVAL,
   WHITESPACE_NORMALIZE,
-  TASK_CHECKBOX_PATTERN,
 } from "./task-regex";
-import { getTaskStatusConfig } from "./task-status";
+import { getTaskGeniusSettings, getTaskStatusConfig } from "./task-status";
+import { setLineStatus } from "./status-dates";
 
 /**
  * Find the index of a task line in an array of lines by its ID.
@@ -110,6 +110,8 @@ export async function updateTaskStatusInVault(
   }
 
   // Handle dataview tasks (inline status), writing the mark TaskGenius uses
+  // and moving the start, completed and cancelled dates the way it does
+  const taskGenius = getTaskGeniusSettings(app);
   const mark = getTaskStatusConfig(app).getMark(newStatus);
   await vault.process(file, (fileContent) => {
     const lines = fileContent.split(/\r?\n/);
@@ -117,10 +119,7 @@ export async function updateTaskStatusInVault(
 
     if (taskLineIdx === -1) return fileContent;
 
-    lines[taskLineIdx] = lines[taskLineIdx].replace(
-      TASK_CHECKBOX_PATTERN,
-      (_match, listMarker) => `${listMarker}[${mark}]`
-    );
+    lines[taskLineIdx] = setLineStatus(lines[taskLineIdx], mark, taskGenius);
     return lines.join("\n");
   });
 }
@@ -222,18 +221,14 @@ export async function removeTagFromTaskInVault(
     // Remove the tag from the line
     const currentLine = lines[taskLineIdx];
 
-    // Match tags in format #tag or #tag/subtag, with optional leading/trailing whitespace
+    // Match tags in format #tag or #tag/subtag, with the whitespace before
+    // them; the indent and any other whitespace of the line stay as they are
     const tagPattern = new RegExp(
       `\\s*#${tagToRemove.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:/\\S*)?(?=\\s|$)`,
       "g"
     );
 
-    const newLine = currentLine
-      .replace(tagPattern, "")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    lines[taskLineIdx] = newLine;
+    lines[taskLineIdx] = currentLine.replace(tagPattern, "");
 
     return lines.join("\n");
   });

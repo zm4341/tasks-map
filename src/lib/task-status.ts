@@ -1,6 +1,7 @@
 import { App } from "obsidian";
 import { TaskStatus } from "src/types/task";
 import { localize, LocalizedText } from "./i18n";
+import type { StatusDateSettings } from "./status-dates";
 
 /**
  * Task statuses follow the TaskGenius plugin: which status a checkbox mark
@@ -18,9 +19,12 @@ type StatusCategory =
   | "planned"
   | "notStarted";
 
-interface TaskGeniusSettings {
+export interface TaskGeniusSettings {
   taskStatuses?: Partial<Record<StatusCategory, string>>;
   countOtherStatusesAs?: string;
+  // How dates follow the status: see status-dates
+  autoDateManager?: StatusDateSettings;
+  preferMetadataFormat?: string;
   statusCycles?: Array<{
     enabled?: boolean;
     cycle?: string[];
@@ -134,14 +138,19 @@ export function createTaskStatusConfig(
   return { getStatus, getMark };
 }
 
-/** Reads the current TaskGenius settings, falling back to its defaults */
-export function getTaskStatusConfig(app: App): TaskStatusConfig {
+/** The current TaskGenius settings, undefined without TaskGenius */
+export function getTaskGeniusSettings(
+  app: App
+): TaskGeniusSettings | undefined {
   const plugins = (
     app as unknown as {
       plugins?: { plugins?: Record<string, { settings?: TaskGeniusSettings }> };
     }
   ).plugins;
-  return createTaskStatusConfig(
-    plugins?.plugins?.[TASK_GENIUS_PLUGIN_ID]?.settings
-  );
+  return plugins?.plugins?.[TASK_GENIUS_PLUGIN_ID]?.settings;
+}
+
+/** Reads the current TaskGenius settings, falling back to its defaults */
+export function getTaskStatusConfig(app: App): TaskStatusConfig {
+  return createTaskStatusConfig(getTaskGeniusSettings(app));
 }
